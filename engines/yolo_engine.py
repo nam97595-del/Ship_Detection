@@ -35,10 +35,12 @@ class YoloTester:
         orig_fps = cap.get(cv2.CAP_PROP_FPS)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
+        input_name = os.path.splitext(os.path.basename(self.video_path))[0]
         model_name = os.path.splitext(os.path.basename(self.model_path))[0]
         tag = f"sz{self.imgsz}_skip{self.stride}_TRACK" # <--- Thêm chữ TRACK vào tên file
         
-        out_vid_path = os.path.join(self.output_folder, f"result_{model_name}_{tag}.mp4")
+        out_vid_name = f"{model_name}_vs_{input_name}_{tag}.mp4"
+        out_vid_path = os.path.join(self.output_folder, out_vid_name)
         
         # Output video writer
         out = cv2.VideoWriter(out_vid_path, cv2.VideoWriter_fourcc(*'mp4v'), orig_fps, (orig_w, orig_h))

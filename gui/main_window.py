@@ -4,7 +4,6 @@ import threading
 import os
 # Import Engine YOLO từ folder engines
 from engines.yolo_engine import YoloTester
-
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -121,7 +120,7 @@ class App(tk.Tk):
         if path:
             self.folder_video.set(path)
             # Lọc lấy file video
-            files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.avi', '.mkv', '.mov'))]
+            files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.avi', '.mkv', '.mov', '.MP4'))]
             if files:
                 self.cb_videos['values'] = files
                 self.cb_videos.current(0)

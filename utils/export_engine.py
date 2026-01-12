@@ -1,5 +1,5 @@
 from ultralytics import YOLO
 
-model = YOLO('model_yolo/ShipDetect_yolo12l_16k.pt')
+model = YOLO('model_yolo/ResumeYolo12l-fish-speed-pass-2.pt')
 
-model.export(format='engine', half=True, device=0, imgsz=1280)
+model.export(format='engine', half=True, device=0, imgsz=640)
