@@ -1,6 +1,8 @@
+import tkinter as tk
 from gui.main_window import App
 
 if __name__ == "__main__":
-    app = App()
-    app.protocol("WM_DELETE_WINDOW", app.on_closing)
-    app.mainloop()
+    root = tk.Tk()
+    app = App(root)
+    root.protocol("WM_DELETE_WINDOW", app.on_closing)
+    root.mainloop()

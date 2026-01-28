@@ -1,172 +1,187 @@
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
+import cv2
 import threading
 import os
-# Import Engine YOLO từ folder engines
+
 from engines.yolo_engine import YoloTester
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("AI Model Testing Tool - Modular Version")
-        self.geometry("600x700")
-        self.resizable(False, False)
+from utils.report_utils import save_test_report
+
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Hệ thống Giám sát Tàu biển - YOLOv12 & OCR")
+        self.root.geometry("1400x850")
+        self.output_dir = tk.StringVar()
+        # Cấu hình
+        self.model_path = tk.StringVar()
+        self.video_path = tk.StringVar()
+        self.conf_val = tk.DoubleVar(value=0.5)
+        self.stride_val = tk.IntVar(value=2)
+        self.use_ocr_var = tk.BooleanVar(value=False) 
+
+        self.setup_ui()
         
-        # --- Style ---
-        style = ttk.Style()
-        style.theme_use('clam')
+    def setup_ui(self):
         
-        # --- Biến lưu trữ dữ liệu ---
-        self.folder_model = tk.StringVar()
-        self.folder_video = tk.StringVar()
-        self.folder_output = tk.StringVar()
+        control_frame = tk.Frame(self.root, bg="#f0f0f0", width=300)
+        control_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
         
-        self.selected_model = tk.StringVar()
-        self.selected_video = tk.StringVar()
+        tk.Label(control_frame, text="CẤU HÌNH", font=("Arial", 14, "bold")).pack(pady=10)
         
-        # Tham số cấu hình mặc định
-        self.var_imgsz = tk.IntVar(value=640)
-        self.var_stride = tk.IntVar(value=3)
-        self.var_conf = tk.DoubleVar(value=0.5)
+        # Nút chọn Model
+        tk.Button(control_frame, text="Chọn Model (.pt/.engine)", command=self.choose_model).pack(fill=tk.X, pady=5)
+        tk.Label(control_frame, textvariable=self.model_path, fg="blue", wraplength=280).pack()
         
-        # Sự kiện dừng thread
-        self.stop_event = threading.Event()
-
-        # Tạo giao diện
-        self.create_widgets()
-
-    def create_widgets(self):
-        # --- HEADER ---
-        lbl_title = tk.Label(self, text="CÔNG CỤ TEST MODEL YOLO (MODULAR)", font=("Arial", 16, "bold"), fg="#2c3e50")
-        lbl_title.pack(pady=15)
-
-        # --- CONTAINER CHÍNH ---
-        main_frame = ttk.Frame(self, padding=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # 1. KHUNG CHỌN MODEL
-        grp_model = ttk.LabelFrame(main_frame, text="1. Chọn Model (YOLO)", padding=10)
-        grp_model.pack(fill=tk.X, pady=5)
+        # Nút chọn Video
+        tk.Button(control_frame, text="Chọn Video Input", command=self.choose_video).pack(fill=tk.X, pady=5)
+        tk.Label(control_frame, textvariable=self.video_path, fg="blue", wraplength=280).pack()
         
-        btn_browse_model = ttk.Button(grp_model, text="📂 Chọn Folder chứa Models", command=self.browse_model_folder)
-        btn_browse_model.pack(fill=tk.X)
+        # Slider Confidence
+        tk.Label(control_frame, text="Độ tin cậy (Conf)").pack(pady=(20,0))
+        tk.Scale(control_frame, variable=self.conf_val, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL).pack(fill=tk.X)
         
-        self.cb_models = ttk.Combobox(grp_model, textvariable=self.selected_model, state="readonly")
-        self.cb_models.pack(fill=tk.X, pady=5)
-        self.cb_models.set("<- Hãy chọn folder trước")
-
-        # 2. KHUNG CHỌN VIDEO
-        grp_video = ttk.LabelFrame(main_frame, text="2. Chọn Video Test", padding=10)
-        grp_video.pack(fill=tk.X, pady=5)
-
-        btn_browse_video = ttk.Button(grp_video, text="📂 Chọn Folder chứa Video", command=self.browse_video_folder)
-        btn_browse_video.pack(fill=tk.X)
-
-        self.cb_videos = ttk.Combobox(grp_video, textvariable=self.selected_video, state="readonly")
-        self.cb_videos.pack(fill=tk.X, pady=5)
-        self.cb_videos.set("<- Hãy chọn folder trước")
-
-        # 3. KHUNG CHỌN OUTPUT
-        grp_out = ttk.LabelFrame(main_frame, text="3. Thư mục lưu kết quả", padding=10)
-        grp_out.pack(fill=tk.X, pady=5)
+        # Slider Stride
+        tk.Label(control_frame, text="Nhảy Frame (Stride)").pack(pady=(10,0))
+        tk.Scale(control_frame, variable=self.stride_val, from_=1, to=10, orient=tk.HORIZONTAL).pack(fill=tk.X)
         
-        btn_browse_out = ttk.Button(grp_out, text="📂 Chọn Output Folder", command=self.browse_output_folder)
-        btn_browse_out.pack(side=tk.LEFT)
+        # CHECKBOX OCR
+        tk.Checkbutton(control_frame, text="Bật Nhận diện Mã hiệu (OCR)", 
+                       variable=self.use_ocr_var, font=("Arial", 11, "bold"), fg="red").pack(pady=20)
         
-        entry_out_path = tk.Entry(grp_out, textvariable=self.folder_output, state="readonly")
-        entry_out_path.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        # Nút Chạy
+        tk.Button(control_frame, text="▶ BẮT ĐẦU CHẠY", bg="green", fg="white", font=("Arial", 12, "bold"), 
+                  height=2, command=self.start_process).pack(fill=tk.X, pady=20)
+                  
+        # Nút Dừng
+        tk.Button(control_frame, text="⏹ DỪNG", bg="red", fg="white", command=self.stop_process).pack(fill=tk.X)
 
-        # 4. CẤU HÌNH (SETTINGS)
-        grp_setting = ttk.LabelFrame(main_frame, text="4. Cấu hình tham số", padding=10)
-        grp_setting.pack(fill=tk.X, pady=5)
+        # Nút lưu KQ
+        tk.Button(control_frame, text="Chọn thư mục lưu kết quả", command=self.choose_output_folder).pack(fill=tk.X, pady=5)
+        tk.Label(control_frame, textvariable=self.output_dir, fg="green", wraplength=280).pack()
+        # Panel hiển thị Video (Canvas)
+        self.canvas_video = tk.Canvas(self.root, bg="black")
+        self.canvas_video.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.canvas_video.bind("<Button-1>", self.on_canvas_click)
 
-        # Grid Layout cho phần setting
-        ttk.Label(grp_setting, text="Image Size:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(grp_setting, textvariable=self.var_imgsz, width=10).grid(row=0, column=1, sticky="w", padx=10)
+        self.detail_frame = tk.Frame(self.root, width=300, bg="#ffffff")
+        self.detail_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
-        ttk.Label(grp_setting, text="Skip Frame:").grid(row=0, column=2, sticky="w")
-        ttk.Entry(grp_setting, textvariable=self.var_stride, width=10).grid(row=0, column=3, sticky="w", padx=10)
+        tk.Label(self.detail_frame, text="CHI TIẾT TÀU", font=("Arial", 12, "bold")).pack(pady=10)
 
-        ttk.Label(grp_setting, text="Conf Thresh:").grid(row=1, column=0, sticky="w", pady=10)
-        scl_conf = ttk.Scale(grp_setting, from_=0.1, to=1.0, variable=self.var_conf, command=lambda v: self.var_conf.set(round(float(v), 2)))
-        scl_conf.grid(row=1, column=1, columnspan=3, sticky="we", padx=10)
-        tk.Label(grp_setting, textvariable=self.var_conf).grid(row=1, column=4)
+        self.detail_canvas = tk.Canvas(self.detail_frame, width=280, height=200, bg="gray")
+        self.detail_canvas.pack(pady=10)
 
-        # 5. NÚT CHẠY
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X, pady=20)
+        self.detail_text = tk.Label(self.detail_frame, text="", wraplength=280, justify=tk.LEFT)
+        self.detail_text.pack()
 
-        self.btn_run = tk.Button(btn_frame, text="▶ CHẠY TEST NGAY", font=("Arial", 12, "bold"), bg="#27ae60", fg="white", height=2, command=self.start_thread)
-        self.btn_run.pack(fill=tk.X)
+    def choose_model(self):
+        path = filedialog.askopenfilename(filetypes=[("YOLO Model", "*.pt *.engine")])
+        if path: self.model_path.set(path)
 
-        lbl_note = tk.Label(main_frame, text="*Nhấn 'q' trên cửa sổ video hoặc tắt tool để dừng.", fg="gray", font=("Arial", 9, "italic"))
-        lbl_note.pack()
+    def choose_video(self):
+        path = filedialog.askopenfilename(filetypes=[("Video", "*.mp4 *.avi *.mkv")])
+        if path: self.video_path.set(path)
 
-    # --- CÁC HÀM XỬ LÝ LOGIC ---
-
-    def browse_model_folder(self):
-        path = filedialog.askdirectory(title="Chọn thư mục chứa Model (.pt, .engine)")
-        if path:
-            self.folder_model.set(path)
-            # Lọc lấy file .pt, .onnx, .engine
-            files = [f for f in os.listdir(path) if f.endswith(('.pt', '.pth', '.engine', '.onnx'))]
-            if files:
-                self.cb_models['values'] = files
-                self.cb_models.current(0)
-            else:
-                messagebox.showwarning("Cảnh báo", "Không tìm thấy file model nào trong thư mục này!")
-
-    def browse_video_folder(self):
-        path = filedialog.askdirectory(title="Chọn thư mục chứa Video")
-        if path:
-            self.folder_video.set(path)
-            # Lọc lấy file video
-            files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.avi', '.mkv', '.mov', '.MP4'))]
-            if files:
-                self.cb_videos['values'] = files
-                self.cb_videos.current(0)
-            else:
-                messagebox.showwarning("Cảnh báo", "Không tìm thấy video nào!")
-
-    def browse_output_folder(self):
-        path = filedialog.askdirectory(title="Chọn thư mục lưu kết quả")
-        if path:
-            self.folder_output.set(path)
-
-    def start_thread(self):
-        # Kiểm tra dữ liệu đầu vào
-        if not self.folder_model.get() or not self.selected_model.get():
-            messagebox.showerror("Thiếu thông tin", "Vui lòng chọn Model!")
-            return
-        if not self.folder_video.get() or not self.selected_video.get():
-            messagebox.showerror("Thiếu thông tin", "Vui lòng chọn Video!")
-            return
-        if not self.folder_output.get():
-            messagebox.showerror("Thiếu thông tin", "Vui lòng chọn Output Folder!")
+    def start_process(self):
+        if not self.model_path.get() or not self.video_path.get():
+            messagebox.showwarning("Thiếu thông tin", "Vui lòng chọn Model và Video trước!")
             return
 
-        # Tạo đường dẫn đầy đủ
-        model_path = os.path.join(self.folder_model.get(), self.selected_model.get())
-        video_path = os.path.join(self.folder_video.get(), self.selected_video.get())
+        if not self.output_dir.get():
+            messagebox.showwarning("Thiếu thông tin", "Vui lòng chọn thư mục lưu kết quả!")
+            return
+        output_dir = self.output_dir.get()
+        os.makedirs(output_dir, exist_ok=True)
 
-        # Reset cờ dừng
-        self.stop_event.clear()
-
-        # Gọi Engine YOLO từ file yolo_engine.py
-        tester = YoloTester(
-            model_path=model_path,
-            video_path=video_path,
-            output_folder=self.folder_output.get(),
-            imgsz=self.var_imgsz.get(),
-            stride=self.var_stride.get(),
-            conf=self.var_conf.get(),
-            iou=0.45,
-            stop_event=self.stop_event
+        self.engine = YoloTester(
+            model_path=self.model_path.get(),
+            input_source=self.video_path.get(),
+            output_folder=output_dir,
+            conf=self.conf_val.get(),
+            imgsz=640,
+            stride=self.stride_val.get(),
+            use_ocr=self.use_ocr_var.get()  # Truyền giá trị bật/tắt OCR
         )
         
-        # Chạy trong luồng riêng để không treo giao diện
-        t = threading.Thread(target=tester.run)
-        t.start()
+        self.thread = threading.Thread(target=self.engine.run, args=(self.update_frame,))
+        self.thread.start()
 
+    def stop_process(self):
+        if hasattr(self, 'engine'):
+            self.engine.stop()
+
+    def update_frame(self, frame_cv, fps):
+        h, w = frame_cv.shape[:2]
+        canvas_h = self.canvas_video.winfo_height()
+        canvas_w = self.canvas_video.winfo_width()
+
+        if canvas_w > 0 and canvas_h > 0:
+            scale = min(canvas_w / w, canvas_h / h)
+
+            new_w, new_h = int(w * scale), int(h * scale)
+
+            self.last_scale = scale
+            self.last_offset = (
+                (canvas_w - new_w) // 2,
+                (canvas_h - new_h) // 2
+            )
+
+            frame_resized = cv2.resize(frame_cv, (new_w, new_h))
+
+            img_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
+            img_pil = Image.fromarray(img_rgb)
+            img_tk = ImageTk.PhotoImage(image=img_pil)
+
+            self.canvas_video.create_image(
+                canvas_w // 2,
+                canvas_h // 2,
+                anchor=tk.CENTER,
+                image=img_tk
+            )
+            self.canvas_video.image = img_tk
+
+        self.root.title(f"Hệ thống Giám sát - FPS: {fps:.2f}")
     def on_closing(self):
-        self.stop_event.set()
-        self.destroy()
+        if messagebox.askokcancel("Thoát", "Bạn có muốn dừng chương trình và thoát?"):
+            self.stop_process()
+            self.root.destroy()
+    def choose_output_folder(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.output_dir.set(path)
+
+    def on_canvas_click(self, event):
+        if not hasattr(self, 'engine'):
+            return
+
+        if not hasattr(self, 'last_scale') or not hasattr(self, 'last_offset'):
+            return
+
+        x = (event.x - self.last_offset[0]) / self.last_scale
+        y = (event.y - self.last_offset[1]) / self.last_scale
+
+        for tid, obj in self.engine.current_objects.items():
+            x1, y1, x2, y2 = obj["bbox"]
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                self.show_ship_detail(tid, obj)
+                break
+    
+    def show_ship_detail(self, track_id, obj):
+        if obj["crop"] is not None:
+            img = cv2.cvtColor(obj["crop"], cv2.COLOR_BGR2RGB)
+            img = cv2.resize(img, (280, 200))
+            img_pil = Image.fromarray(img)
+            img_tk = ImageTk.PhotoImage(img_pil)
+            self.detail_canvas.create_image(0, 0, anchor=tk.NW, image=img_tk)
+            self.detail_canvas.image = img_tk
+
+        text = obj["ocr"] if obj["ocr"] else "Chưa nhận diện"
+        self.detail_text.config(
+            text=f"Track ID: {track_id}\nOCR: {text}"
+        )
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()

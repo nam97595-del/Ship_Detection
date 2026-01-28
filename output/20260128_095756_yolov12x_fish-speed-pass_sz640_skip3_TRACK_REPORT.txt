@@ -1,0 +1,25 @@
+
+==========================================================
+BÁO CÁO TEST TỰ ĐỘNG - yolov12x_fish-speed-pass
+==========================================================
+Thời gian: 2026-01-28 09:57:56
+Video Input: DJI_0429.MP4
+----------------------------------------------------------
+1. CẤU HÌNH
+   - Model: yolov12x_fish-speed-pass
+   - Size: 640
+   - Skip Frame: 3
+   - Confidence Thresh: 0.65
+
+2. KẾT QUẢ HIỆU NĂNG
+   - Tổng frames gốc: 422
+   - Số frame đã xử lý: 140
+   - FPS Trung bình: 7.57
+   - Thời gian xử lý/frame: 134.39 ms
+
+3. KẾT QUẢ NHẬN DIỆN
+   - Độ tin cậy trung bình (Confidence): 0.7617
+   - Tổng lượt phát hiện (All Detections): 1423
+   - TRACKING (Số đối tượng thực tế): 29
+==========================================================
+    

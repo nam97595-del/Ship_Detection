@@ -3,34 +3,50 @@ import os
 import numpy as np
 import datetime
 
-def save_test_report(data, all_confs, output_folder, video_name, processed_count, total_frames, model_name, imgsz, stride, conf_thresh, tag):
-    # 1. Tạo tên file
+def save_test_report(data, all_confs, output_folder, video_name, processed_count, total_frames, model_name, imgsz, stride, conf_thresh, tag, ocr_data=None):
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_name = f"{timestamp}_{model_name}_{tag}_raw.csv"
     txt_name = f"{timestamp}_{model_name}_{tag}_REPORT.txt"
+    ship_csv_name = f"{timestamp}_{model_name}_{tag}_SHIPS.csv" # <--- File CSV riêng cho danh sách tàu
     
     csv_path = os.path.join(output_folder, csv_name)
     txt_path = os.path.join(output_folder, txt_name)
+    ship_csv_path = os.path.join(output_folder, ship_csv_name)
 
-    # 2. Tạo DataFrame và lưu CSV
     df = pd.DataFrame(data)
     df.to_csv(csv_path, index=False)
 
-    # 3. Tính toán thống kê cơ bản
     avg_fps = df["FPS"].mean()
     avg_time = df["Time_ms"].mean()
     total_detections = df["Objects_In_Frame"].sum() if "Objects_In_Frame" in df.columns else df["Objects"].sum()
     overall_conf = np.mean(all_confs) if len(all_confs) > 0 else 0.0
 
-    # 4. Xử lý phần Tracking (MỚI)
-    # Kiểm tra xem trong dữ liệu có cột "Total_Unique_Objects" không
     tracking_line = ""
+    unique_count = 0
     if "Total_Unique_Objects" in df.columns:
-        # Lấy giá trị lớn nhất trong cột (vì số lượng tracking tăng dần)
         unique_count = df["Total_Unique_Objects"].max()
         tracking_line = f"\n   - TRACKING (Số đối tượng thực tế): {unique_count}"
 
-    # 5. Soạn nội dung Report
+    # KẾT QUẢ OCR
+    ocr_section = ""
+    if ocr_data and len(ocr_data) > 0:
+        ocr_section = "\n4. DANH SÁCH MÃ HIỆU TÀU (OCR RESULT)\n"
+        ocr_section += "   ID   | Mã Hiệu (Text)\n"
+        ocr_section += "   -----|-------------------\n"
+        
+        ship_list = []
+        
+        for track_id, text in ocr_data.items():
+            ocr_section += f"   {track_id:<5}| {text}\n"
+            ship_list.append({"Track_ID": track_id, "OCR_Text": text})
+            
+        if ship_list:
+            pd.DataFrame(ship_list).to_csv(ship_csv_path, index=False)
+            ocr_section += f"\n   (Đã lưu danh sách chi tiết tại: {ship_csv_name})"
+    else:
+        ocr_section = "\n4. KẾT QUẢ OCR\n   - Không có dữ liệu OCR hoặc không bật tính năng OCR."
+
+    # 6. Nội dung Report
     report = f"""
 ==========================================================
 BÁO CÁO TEST TỰ ĐỘNG - {model_name}
@@ -53,12 +69,12 @@ Video Input: {video_name}
 3. KẾT QUẢ NHẬN DIỆN
    - Độ tin cậy trung bình (Confidence): {overall_conf:.4f}
    - Tổng lượt phát hiện (All Detections): {total_detections}{tracking_line}
+
+{ocr_section}
 ==========================================================
     """
     
-    # 6. Ghi file text
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(report)
     
-    # 7. Trả về đường dẫn và nội dung để hiển thị lên GUI
     return txt_path, report

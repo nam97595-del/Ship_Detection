@@ -16,6 +16,7 @@ Thumbs.db
 result_*/
 BieuDo/
 module_yolo/
+reports/
 
 *.tmp
 *.log
