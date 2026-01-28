@@ -17,6 +17,7 @@ result_*/
 BieuDo/
 module_yolo/
 reports/
+output/
 
 *.tmp
 *.log
