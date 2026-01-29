@@ -18,194 +18,153 @@ class YoloTester:
         self.imgsz = imgsz
         self.stride = stride
         self.use_ocr = use_ocr
-
         self.stop_event = False
 
-        print(f">> Loading YOLO model: {model_path}")
+        print(f">> Loading YOLO: {model_path}")
         self.model = YOLO(model_path)
 
-        self.ocr_engine = None
         self.ocr_queue = queue.Queue()
+        self.ocr_engine = None
         
         if use_ocr:
             try:
                 self.ocr_engine = ShipOCR()
-                self.ocr_thread = threading.Thread(target=self.ocr_worker, daemon=True)
-                self.ocr_thread.start()
+                threading.Thread(target=self.ocr_worker, daemon=True).start()
             except Exception as e:
-                print(f"Không thể khởi tạo OCR: {e}")
-                self.use_ocr = False
+                print(f"Lỗi Init OCR: {e}")
 
         self.ocr_cache = {}
-
         self.current_objects = {}
 
     def ocr_worker(self):
-        """
-        Luồng riêng để xử lý OCR nặng nhọc
-        """
-        print(">> Luồng OCR đã khởi động và đang chờ ảnh...")
-        while not self.stop_event:
+        """Worker xử lý ảnh từ hàng đợi"""
+        print(">> OCR Worker started...")
+        while True:
             try:
-
-                req = self.ocr_queue.get(timeout=1)
-                track_id, crop_img = req
+                item = self.ocr_queue.get(timeout=0.5)
+                track_id, crop_img, is_priority = item
                 
-
-                res = self.ocr_engine.ocr_image(crop_img)
+                results = self.ocr_engine.ocr_image(crop_img)
                 
-                if res:
-                    text = res[0]["text"]
+                if results:
 
-                    print(f">> OCR Success [ID {track_id}]: {text}")
+                    text = results[0]["text"]
+                    score = results[0]["score"]
+                    
+                    print(f">> OCR Result [ID {track_id}]: {text} ({int(score*100)}%)")
 
-
-                    if track_id in self.ocr_cache:
-                        self.ocr_cache[track_id]["texts"].append(text)
-                        
-                        texts = self.ocr_cache[track_id]["texts"]
-                        if len(texts) >= 1:
-                            most_common = max(set(texts), key=texts.count)
-                            self.ocr_cache[track_id]["final"] = most_common
-                else:
-
-                    pass
+                    if track_id not in self.ocr_cache:
+                        self.ocr_cache[track_id] = {"texts": [], "final": None}
+                    
+                    self.ocr_cache[track_id]["final"] = text
                 
                 self.ocr_queue.task_done()
                 
             except queue.Empty:
+                if self.stop_event: break
                 continue
             except Exception as e:
-                print(f"Lỗi trong luồng OCR: {e}")
+                print(f"OCR Worker Error: {e}")
+
+    def request_manual_ocr(self, track_id):
+        """Hàm này được gọi khi Click chuột"""
+        if track_id in self.current_objects:
+            obj = self.current_objects[track_id]
+            print(f">> Clicked ID {track_id}. Requesting OCR...")
+            self.ocr_queue.put((track_id, obj["crop"].copy(), True))
 
     def run(self, update_gui_callback):
         cap = cv2.VideoCapture(self.input_source)
-        if not cap.isOpened():
-            print("Không thể mở video!")
-            return
+        
+        w_vid = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h_vid = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps_vid = cap.get(cv2.CAP_PROP_FPS)
+        save_path = os.path.join(self.output_folder, f"result_{os.path.basename(self.input_source)}")
+        out = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps_vid, (w_vid, h_vid))
 
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_count = 0
-
         all_confs = []
         data_report = []
 
-        print(">> Bắt đầu xử lý video...")
-
+        print(">> Video processing started...")
         while cap.isOpened() and not self.stop_event:
             ret, frame = cap.read()
-            if not ret:
-                break
+            if not ret: break
 
             frame_count += 1
             if frame_count % self.stride != 0:
+
                 continue
 
-            start_time = time.time()
+            start_t = time.time()
 
+            results = self.model.track(frame, conf=self.conf, imgsz=self.imgsz, persist=True, verbose=False)
+            res = results[0]
+            annotated_frame = res.plot()
 
-            results = self.model.track(
-                frame,
-                conf=self.conf,
-                imgsz=self.imgsz,
-                persist=True,
-                verbose=False
-            )
+            current_ids_in_frame = []
 
-            result = results[0]
-            annotated_frame = result.plot()
-
-            current_ids = []
-
-            if result.boxes and result.boxes.id is not None:
-                boxes = result.boxes.xyxy.cpu().numpy().astype(int)
-                ids = result.boxes.id.cpu().numpy().astype(int)
-                confs = result.boxes.conf.cpu().numpy()
-
+            if res.boxes and res.boxes.id is not None:
+                boxes = res.boxes.xyxy.cpu().numpy().astype(int)
+                ids = res.boxes.id.cpu().numpy().astype(int)
+                confs = res.boxes.conf.cpu().numpy()
                 all_confs.extend(confs)
 
                 for box, track_id in zip(boxes, ids):
                     x1, y1, x2, y2 = box
-                    current_ids.append(track_id)
+                    current_ids_in_frame.append(track_id)
 
-                    if track_id not in self.ocr_cache:
-                        self.ocr_cache[track_id] = {
-                            "texts": [],
-                            "final": None
-                        }
-
-                    ocr_text = self.ocr_cache[track_id]["final"]
+                    text_display = "..."
+                    if track_id in self.ocr_cache and self.ocr_cache[track_id]["final"]:
+                        text_display = self.ocr_cache[track_id]["final"]
 
 
-                    if self.use_ocr and self.ocr_engine:
-
-                        if ocr_text is None and frame_count % 5 == 0:
-                            if self.ocr_queue.qsize() < 10: 
-                                h, w, _ = frame.shape
-                                cy1 = max(0, y1)
-                                cy2 = min(h, y2)
-                                cx1 = max(0, x1)
-                                cx2 = min(w, x2)
-                                
-                                crop_img = frame[cy1:cy2, cx1:cx2].copy()
-                                self.ocr_queue.put((track_id, crop_img))
-
-                    show_text = ocr_text if ocr_text else "..."
-
+                    h, w, _ = frame.shape
+                    cy1, cy2 = max(0, y1), min(h, y2)
+                    cx1, cx2 = max(0, x1), min(w, x2)
+                    
                     self.current_objects[track_id] = {
                         "bbox": (x1, y1, x2, y2),
-                        "ocr": show_text,
-                        "crop": frame[y1:y2, x1:x2].copy()
+                        "ocr": text_display,
+                        "crop": frame[cy1:cy2, cx1:cx2].copy()
                     }
 
-                    if ocr_text:
-                        cv2.putText(
-                            annotated_frame,
-                            f"{ocr_text}",
-                            (x1, y1 - 35),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.8, (0, 0, 255), 2
-                        )
+                    if text_display != "...":
+                        cv2.putText(annotated_frame, text_display, (x1, y1-10), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
-            end_time = time.time()
-            process_time_ms = (end_time - start_time) * 1000
-            fps_cur = 1000.0 / process_time_ms if process_time_ms > 0 else 0
-
-            update_gui_callback(annotated_frame, fps_cur)
+            # FPS
+            out.write(annotated_frame)
+            process_ms = (time.time() - start_t) * 1000
+            fps = 1000.0 / process_ms if process_ms > 0 else 0
+            
+            update_gui_callback(annotated_frame, fps)
 
             data_report.append({
                 "Frame": frame_count,
-                "FPS": fps_cur,
-                "Time_ms": process_time_ms,
-                "Objects_In_Frame": len(current_ids),
-                "Total_Unique_Objects": len(self.ocr_cache)
+                "FPS": fps,
+                "Time_ms": process_ms,
+                "Objects": len(current_ids_in_frame)
             })
 
         cap.release()
-
-
+        out.release()
+        self.stop_event = True
+        
         if data_report:
             try:
                 save_test_report(
-                    data=data_report,
-                    all_confs=all_confs,
-                    output_folder=self.output_folder,
+                    data=data_report, all_confs=all_confs, 
+                    output_folder=self.output_folder, 
                     video_name=os.path.basename(self.input_source),
-                    processed_count=frame_count,
-                    total_frames=total_frames,
-                    model_name=os.path.basename(self.model_path),
-                    imgsz=self.imgsz,
-                    stride=self.stride,
-                    conf_thresh=self.conf,
-                    tag="integrate_test",
-                    ocr_data={
-                        tid: v["final"] if v["final"] else "Unknown"
-                        for tid, v in self.ocr_cache.items()
-                    }
+                    processed_count=frame_count, total_frames=frame_count, # Ước lượng
+                    model_name="yolo", imgsz=self.imgsz, stride=self.stride, 
+                    conf_thresh=self.conf, tag="fixed_ocr",
+                    ocr_data={k: v["final"] for k, v in self.ocr_cache.items() if v["final"]}
                 )
-                print(f">> Đã lưu báo cáo tại: {self.output_folder}")
+                print(f">> Saved report to {self.output_folder}")
             except Exception as e:
-                print(f"Lỗi khi lưu báo cáo: {e}")
+                print(f"Report Error: {e}")
 
     def stop(self):
         self.stop_event = True
