@@ -33,8 +33,9 @@ project_root/
 ├── main.py                # File chạy chính của chương trình
 ├── README.md              # Hướng dẫn sử dụng
 └── requirements.txt       # Danh sách thư viện cần thiết
+```
 
-Yêu Cầu Hệ Thống & Cài Đặt
+## Yêu Cầu Hệ Thống & Cài Đặt
 Yêu cầu
 Python 3.8 trở lên
 
@@ -44,13 +45,15 @@ Các bước cài đặt
 Bước 1: Clone dự án hoặc tải về máy.
 
 Bước 2: Cài đặt các thư viện phụ thuộc. Nên sử dụng môi trường ảo (Virtual Environment) để tránh xung đột thư viện.
+```bash
 pip install -r requirements.txt
-
-Hướng Dẫn Sử Dụng
+```
+## Hướng Dẫn Sử Dụng
 
 Bước 1: Khởi chạy ứng dụng. Chạy file main.py từ terminal hoặc IDE:
+```bash
 python main.py
-
+```
 Bước 2: Thiết lập thông số kiểm thử trên giao diện.
 - Chọn Model: Nhấn "Chọn Folder chứa Models" -> Chọn file model (.pt) từ danh sách thả xuống.
 - Chọn Video: Nhấn "Chọn Folder chứa Video" -> Chọn video cần test.
