@@ -70,7 +70,7 @@ class YoloTester:
             
             # persist=True: Bắt buộc phải có để model nhớ ID qua các frame
             # tracker="bytetrack.yaml" hoặc "botsort.yaml" (mặc định là botsort)
-            results = model.track(frame, persist=True, verbose=False, conf=self.conf, iou=self.iou, imgsz=self.imgsz)
+            results = model.track(frame, persist=True, verbose=False, conf=self.conf, iou=self.iou, imgsz=self.imgsz, tracker="bytetrack.yaml")
             
             end_t = time.time()
             fps_curr = 1.0 / (end_t - start_t) if (end_t - start_t) > 0 else 0
