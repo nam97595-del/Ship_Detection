@@ -1,12 +1,13 @@
 import cv2
 import time
 import os
+import numpy as np
 from ultralytics import YOLO
 from tkinter import messagebox
 from utils.report_utils import save_test_report
 
 class YoloTester:
-    def __init__(self, model_path, video_path, output_folder, imgsz, stride, conf, iou, stop_event):
+    def __init__(self, model_path, video_path, output_folder, imgsz, stride, conf, iou, stop_event, tracker_type="bytetrack.yaml"):
         self.model_path = model_path
         self.video_path = video_path
         self.output_folder = output_folder
@@ -15,8 +16,28 @@ class YoloTester:
         self.conf = conf
         self.iou = iou
         self.stop_event = stop_event
+        self.tracker_type = tracker_type
 
     def run(self):
+        # --- CẤU HÌNH GIAO DIỆN ---
+        DRAW_CFG = {
+            "box_thick": 2,          # Độ dày khung hình chữ nhật
+            "font_scale": 0.6,       # Cỡ chữ
+            "font_thick": 1,         # Độ đậm của chữ
+            "text_bg_alpha": 0.5,    # Độ trong suốt nền chữ (0-1)
+            "show_conf": True,       # Hiện độ tin cậy
+            
+            # Mapping ID class sang tên hiển thị và màu sắc (BGR)
+            "classes": {
+                0: {"name": "F-Boat", "color": (0, 0, 255)},    # Đỏ (Fishing)
+                1: {"name": "P-Ship", "color": (255, 255, 0)},  # Xanh ngọc (Passenger)
+                2: {"name": "S-Boat", "color": (0, 255, 0)},    # Xanh lá (Speed)
+                # Thêm mặc định nếu có class lạ
+                "default": {"name": "Obj", "color": (255, 255, 255)} 
+            }
+        }
+        # -----------------------------------------
+
         try:
             print(f"🔹 Loading model: {self.model_path}")
             model = YOLO(self.model_path)
@@ -37,16 +58,15 @@ class YoloTester:
 
         input_name = os.path.splitext(os.path.basename(self.video_path))[0]
         model_name = os.path.splitext(os.path.basename(self.model_path))[0]
-        tag = f"sz{self.imgsz}_skip{self.stride}_TRACK" # <--- Thêm chữ TRACK vào tên file
+        tracker_tag = self.tracker_type.replace('.yaml', '').upper()
+        tag = f"sz{self.imgsz}_skip{self.stride}_{tracker_tag}_CUSTOM"
         
         out_vid_name = f"{model_name}_vs_{input_name}_{tag}.mp4"
         out_vid_path = os.path.join(self.output_folder, out_vid_name)
-        
-        # Output video writer
         out = cv2.VideoWriter(out_vid_path, cv2.VideoWriter_fourcc(*'mp4v'), orig_fps, (orig_w, orig_h))
 
         # Setup Window
-        window_name = f"YOLO Tracking - {model_name}"
+        window_name = f"YOLO Custom Draw - {model_name}"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 1280, 720)
 
@@ -54,8 +74,6 @@ class YoloTester:
         processed_count = 0
         frame_data = []
         all_confs = []
-        
-        # Set lưu trữ các ID đã xuất hiện để đếm số lượng thực tế
         unique_ids = set() 
 
         while cap.isOpened() and not self.stop_event.is_set():
@@ -68,49 +86,86 @@ class YoloTester:
             processed_count += 1
             start_t = time.time()
             
-            # persist=True: Bắt buộc phải có để model nhớ ID qua các frame
-            # tracker="bytetrack.yaml" hoặc "botsort.yaml" (mặc định là botsort)
-            results = model.track(frame, persist=True, verbose=False, conf=self.conf, iou=self.iou, imgsz=self.imgsz, tracker="bytetrack.yaml")
+            # Tracking
+            results = model.track(frame, persist=True, verbose=False, conf=self.conf, iou=self.iou, imgsz=self.imgsz, tracker=self.tracker_type)
             
             end_t = time.time()
             fps_curr = 1.0 / (end_t - start_t) if (end_t - start_t) > 0 else 0
             
-            # --- XỬ LÝ KẾT QUẢ TRACKING ---
+            # --- CUSTOM DRAWING LOGIC (BẮT ĐẦU VẼ TAY) ---
+            annotated_frame = frame.copy() # Copy ảnh gốc để vẽ
+            overlay = frame.copy()         # Layer để vẽ độ trong suốt (transparency)
+            
             boxes = results[0].boxes
             
-            # Lấy danh sách ID (nếu có detect được vật thể)
-            if boxes.id is not None:
-                track_ids = boxes.id.int().cpu().tolist() # Lấy danh sách ID hiện tại
-                for t_id in track_ids:
-                    unique_ids.add(t_id) # Thêm vào set để đếm số lượng unique
-            
-            # --- VẼ GIAO DIỆN ---
-            # Hàm plot() của Ultralytics tự động vẽ ID lên hình khi dùng mode track
-            annotated_frame = results[0].plot()
-            
-            # Vẽ thêm thống kê Tracking lên góc trái
-            total_unique_objs = len(unique_ids)
-            
-            # Tạo nền đen mờ để chữ dễ đọc
-            cv2.rectangle(annotated_frame, (0, 0), (350, 100), (0, 0, 0), -1)
-            cv2.putText(annotated_frame, f"FPS: {fps_curr:.1f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.putText(annotated_frame, f"Objects in Frame: {len(boxes)}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-            # Hiển thị tổng số đối tượng thực tế đã đi qua (Tracking Count)
-            cv2.putText(annotated_frame, f"Total Count (Unique): {total_unique_objs}", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+            if len(boxes) > 0:
+                # Lấy dữ liệu dạng array để xử lý nhanh hơn
+                xyxys = boxes.xyxy.cpu().numpy().astype(int)
+                ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else [-1]*len(boxes)
+                clss = boxes.cls.cpu().numpy().astype(int)
+                confs = boxes.conf.cpu().numpy()
+                
+                # Lưu ID để thống kê
+                for t_id in ids:
+                    if t_id != -1: unique_ids.add(t_id)
+                    
+                # Vòng lặp vẽ từng box
+                for box, track_id, cls_id, conf in zip(xyxys, ids, clss, confs):
+                    x1, y1, x2, y2 = box
+                    
+                    # 1. Lấy thông tin class từ Config
+                    class_info = DRAW_CFG["classes"].get(cls_id, DRAW_CFG["classes"]["default"])
+                    color = class_info["color"]
+                    label_name = class_info["name"]
+                    
+                    # 2. Vẽ Box (Khung hình chữ nhật)
+                    cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, DRAW_CFG["box_thick"])
+                    
+                    # 3. Tạo Label text (Ví dụ: #5 F-Boat 0.85)
+                    id_text = f"#{track_id}" if track_id != -1 else ""
+                    conf_text = f"{conf:.2f}" if DRAW_CFG["show_conf"] else ""
+                    label = f"{id_text} {label_name} {conf_text}".strip()
+                    
+                    # 4. Tính toán kích thước nền chữ
+                    (w_text, h_text), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], DRAW_CFG["font_thick"])
+                    
+                    # Đặt vị trí chữ (mặc định ở trên đầu box, nếu tràn màn hình thì đưa vào trong)
+                    text_y = y1 - 5 if y1 - h_text - 5 > 0 else y1 + h_text + 5
+                    
+                    # 5. Vẽ nền chữ TRONG SUỐT (Khắc phục việc che khuất)
+                    # Vẽ hình chữ nhật đặc lên lớp overlay
+                    cv2.rectangle(overlay, 
+                                  (x1, text_y - h_text - 5), 
+                                  (x1 + w_text, text_y + baseline), 
+                                  color, -1) # -1 là tô kín màu
+                    
+                    # Vẽ chữ đè lên frame chính
+                    cv2.putText(annotated_frame, label, (x1, text_y), 
+                                cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], (255, 255, 255), DRAW_CFG["font_thick"], cv2.LINE_AA)
+
+            # --- GỘP LAYER TRONG SUỐT ---
+            # Công thức: ảnh_cuối = ảnh_gốc * alpha + lớp_màu * (1-alpha)
+            alpha = 1 - DRAW_CFG["text_bg_alpha"]
+            annotated_frame = cv2.addWeighted(overlay, 1 - alpha, annotated_frame, alpha, 0)
+
+            # --- VẼ THỐNG KÊ (UI) ---
+            # Vẽ bảng thống kê gọn gàng góc trái
+            cv2.rectangle(annotated_frame, (5, 5), (250, 85), (0, 0, 0), -1) # Nền đen cho UI
+            cv2.putText(annotated_frame, f"FPS: {fps_curr:.1f}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+            cv2.putText(annotated_frame, f"Objs Current: {len(boxes)}", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
+            cv2.putText(annotated_frame, f"Total Count: {len(unique_ids)}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 1)
             
             out.write(annotated_frame)
             cv2.imshow(window_name, annotated_frame)
 
             # Collect Data
-            confs = boxes.conf.cpu().numpy() if len(boxes) > 0 else []
-            if len(confs) > 0: all_confs.extend(confs)
-            
+            if len(boxes) > 0: all_confs.extend(confs)
             if processed_count > 1:
                 frame_data.append({
                     "Frame": frame_idx, "FPS": round(fps_curr, 2),
                     "Time_ms": round((end_t - start_t)*1000, 2),
                     "Objects_In_Frame": len(boxes),
-                    "Total_Unique_Objects": total_unique_objs # <--- Ghi thêm vào báo cáo
+                    "Total_Unique_Objects": len(unique_ids)
                 })
 
             if cv2.waitKey(1) & 0xFF == ord('q'): break
@@ -124,10 +179,7 @@ class YoloTester:
                 frame_data, all_confs, self.output_folder, os.path.basename(self.video_path), 
                 processed_count, total_frames, model_name, self.imgsz, self.stride, self.conf, tag
             )
-            
-            # Thêm dòng tổng kết tracking vào thông báo
-            report_content += f"\n\n[TRACKING RESULT]\nTổng số đối tượng độc nhất phát hiện được: {len(unique_ids)}"
-            
+            report_content += f"\n\n[TRACKING RESULT]\nTổng số đối tượng độc nhất: {len(unique_ids)}"
             messagebox.showinfo("KẾT QUẢ TEST", report_content)
         else:
             messagebox.showwarning("Cảnh báo", "Không có dữ liệu!")
