@@ -92,7 +92,7 @@ class YoloTester:
             end_t = time.time()
             fps_curr = 1.0 / (end_t - start_t) if (end_t - start_t) > 0 else 0
             
-            # --- CUSTOM DRAWING LOGIC (BẮT ĐẦU VẼ TAY) ---
+            # --- LOGIC VẼ LABEL ---
             annotated_frame = frame.copy() # Copy ảnh gốc để vẽ
             overlay = frame.copy()         # Layer để vẽ độ trong suốt (transparency)
             
@@ -129,17 +129,17 @@ class YoloTester:
                     # 4. Tính toán kích thước nền chữ
                     (w_text, h_text), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], DRAW_CFG["font_thick"])
                     
-                    # Đặt vị trí chữ (mặc định ở trên đầu box, nếu tràn màn hình thì đưa vào trong)
+                    # Đặt vị trí chữ (mặc định trên đầu box, tràn đưa vào trong)
                     text_y = y1 - 5 if y1 - h_text - 5 > 0 else y1 + h_text + 5
                     
-                    # 5. Vẽ nền chữ TRONG SUỐT (Khắc phục việc che khuất)
+                    # 5. Vẽ nền chữ TRONG SUỐT
                     # Vẽ hình chữ nhật đặc lên lớp overlay
                     cv2.rectangle(overlay, 
                                   (x1, text_y - h_text - 5), 
                                   (x1 + w_text, text_y + baseline), 
                                   color, -1) # -1 là tô kín màu
                     
-                    # Vẽ chữ đè lên frame chính
+                    # Vẽ lên frame chính
                     cv2.putText(annotated_frame, label, (x1, text_y), 
                                 cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], (255, 255, 255), DRAW_CFG["font_thick"], cv2.LINE_AA)
 
@@ -149,7 +149,7 @@ class YoloTester:
             annotated_frame = cv2.addWeighted(overlay, 1 - alpha, annotated_frame, alpha, 0)
 
             # --- VẼ THỐNG KÊ (UI) ---
-            # Vẽ bảng thống kê gọn gàng góc trái
+            # Vẽ bảng góc trái
             cv2.rectangle(annotated_frame, (5, 5), (250, 85), (0, 0, 0), -1) # Nền đen cho UI
             cv2.putText(annotated_frame, f"FPS: {fps_curr:.1f}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
             cv2.putText(annotated_frame, f"Objs Current: {len(boxes)}", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
