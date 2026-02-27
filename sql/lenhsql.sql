@@ -1,10 +1,8 @@
--- Tạo Database shipdb
 CREATE DATABASE shipdb;
 GO
 USE shipdb;
 GO
 
--- Tạo bảng users
 CREATE TABLE users (
     id INT IDENTITY(1,1) PRIMARY KEY,
     username NVARCHAR(50) NOT NULL UNIQUE,
@@ -13,7 +11,6 @@ CREATE TABLE users (
 );
 GO
 
--- Thêm tài khoản mẫu
 INSERT INTO users (username, password, full_name)
 VALUES ('admin', '123', 'Quản trị viên');
 GO
