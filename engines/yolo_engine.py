@@ -6,7 +6,7 @@ from ultralytics import YOLO
 from tkinter import messagebox
 from utils.report_utils import save_test_report
 
-timestamp = time.strftime("%Y%M%d_%H%M%S")
+timestamp = time.strftime("%Y%m%d_%H%M%S")
 class YoloTester:
     def __init__(self, model_path, video_path, output_folder, imgsz, stride, conf, iou, stop_event, tracker_type="bytetrack.yaml"):
         self.model_path = model_path
@@ -37,8 +37,6 @@ class YoloTester:
                 "default": {"name": "Obj", "color": (255, 255, 255)} 
             }
         }
-
-        # -----------------------------------------
 
         try:
             print(f"🔹 Loading model: {self.model_path}")
@@ -72,7 +70,7 @@ class YoloTester:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 1280, 720)
 
-        frame_idx = 0
+        frame_idx = 0 # KHỞI TẠO TỪ 0 ĐỂ KHỚP VỚI DARKLABEL
         processed_count = 0
         frame_data = []
         all_confs = []
@@ -85,8 +83,10 @@ class YoloTester:
             success, frame = cap.read()
             if not success: break
             
-            frame_idx += 1
-            if frame_idx % self.stride != 0: continue 
+            # --- SỬA LỖI ĐẾM FRAME ĐỂ KHÔNG BỊ LỆCH PHA VỚI GT ---
+            if (frame_idx + 1) % self.stride != 0: 
+                frame_idx += 1
+                continue 
 
             processed_count += 1
             start_t = time.time()
@@ -97,7 +97,7 @@ class YoloTester:
             end_t = time.time()
             fps_curr = 1.0 / (end_t - start_t) if (end_t - start_t) > 0 else 0
             
-            # --- DRAWING LOGIC ---
+            # --- LOGIC VẼ LABEL ---
             annotated_frame = frame.copy() # Copy ảnh gốc để vẽ
             overlay = frame.copy()         # Layer để vẽ độ trong suốt (transparency)
             
@@ -126,6 +126,7 @@ class YoloTester:
                     if track_id != -1:
                         mot_line = f"{frame_idx},{track_id},{x1},{y1},{w},{h},{conf:.4f},{cls_id},-1,-1"
                         mot_predictions.append(mot_line)
+                        
                     # 1. Lấy thông tin class từ Config
                     class_info = DRAW_CFG["classes"].get(cls_id, DRAW_CFG["classes"]["default"])
                     color = class_info["color"]
@@ -134,7 +135,7 @@ class YoloTester:
                     # 2. Vẽ Box (Khung hình chữ nhật)
                     cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, DRAW_CFG["box_thick"])
                     
-                    # 3. Tạo Label text (Ví dụ: #5 F-Boat 0.85)
+                    # 3. Tạo Label text
                     id_text = f"#{track_id}" if track_id != -1 else ""
                     conf_text = f"{conf:.2f}" if DRAW_CFG["show_conf"] else ""
                     label = f"{id_text} {label_name} {conf_text}".strip()
@@ -142,28 +143,25 @@ class YoloTester:
                     # 4. Tính toán kích thước nền chữ
                     (w_text, h_text), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], DRAW_CFG["font_thick"])
                     
-                    # Đặt vị trí chữ (mặc định ở trên đầu box, nếu tràn màn hình thì đưa vào trong)
+                    # Đặt vị trí chữ
                     text_y = y1 - 5 if y1 - h_text - 5 > 0 else y1 + h_text + 5
                     
-                    # 5. Vẽ nền chữ TRONG SUỐT (Khắc phục việc che khuất)
-                    # Vẽ hình chữ nhật đặc lên lớp overlay
+                    # 5. Vẽ nền chữ TRONG SUỐT
                     cv2.rectangle(overlay, 
                                   (x1, text_y - h_text - 5), 
                                   (x1 + w_text, text_y + baseline), 
-                                  color, -1) # -1 là tô kín màu
+                                  color, -1) 
                     
-                    # Vẽ chữ đè lên frame chính
+                    # Vẽ lên frame chính
                     cv2.putText(annotated_frame, label, (x1, text_y), 
                                 cv2.FONT_HERSHEY_SIMPLEX, DRAW_CFG["font_scale"], (255, 255, 255), DRAW_CFG["font_thick"], cv2.LINE_AA)
 
             # --- GỘP LAYER TRONG SUỐT ---
-            # Công thức: ảnh_cuối = ảnh_gốc * alpha + lớp_màu * (1-alpha)
             alpha = 1 - DRAW_CFG["text_bg_alpha"]
             annotated_frame = cv2.addWeighted(overlay, 1 - alpha, annotated_frame, alpha, 0)
 
             # --- VẼ THỐNG KÊ (UI) ---
-            # Vẽ bảng thống kê gọn gàng góc trái
-            cv2.rectangle(annotated_frame, (5, 5), (250, 85), (0, 0, 0), -1) # Nền đen cho UI
+            cv2.rectangle(annotated_frame, (5, 5), (250, 85), (0, 0, 0), -1) 
             cv2.putText(annotated_frame, f"FPS: {fps_curr:.1f}", (15, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
             cv2.putText(annotated_frame, f"Objs Current: {len(boxes)}", (15, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
             cv2.putText(annotated_frame, f"Total Count: {len(unique_ids)}", (15, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 1)
@@ -180,6 +178,9 @@ class YoloTester:
                     "Objects_In_Frame": len(boxes),
                     "Total_Unique_Objects": len(unique_ids)
                 })
+
+            # TĂNG FRAME_IDX Ở CUỐI VÒNG LẶP
+            frame_idx += 1
 
             if cv2.waitKey(1) & 0xFF == ord('q'): break
 
