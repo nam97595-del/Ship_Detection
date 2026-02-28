@@ -13,8 +13,21 @@ def evaluate_tracking(gt_file, pred_file):
     gt_basename = gt_filename.replace('.txt', '')
 
     try:
-        gt = mm.io.loadtxt(gt_file, fmt="mot15-2D", min_confidence=1)
+        gt_df = pd.read_csv(gt_file, header=None)
+ 
+        if (gt_df[1] == 0).any():
+            print("🔹 Phát hiện ID = 0 trong file Ground Truth, đang tự động điều chỉnh...")
+            gt_df[1] = gt_df[1] + 1
+            
+            temp_gt_file = "temp_gt_fixed.txt"
+            gt_df.to_csv(temp_gt_file, header=False, index=False)
+            gt = mm.io.loadtxt(temp_gt_file, fmt="mot15-2D", min_confidence=1)
+            os.remove(temp_gt_file)
+        else:
+            gt = mm.io.loadtxt(gt_file, fmt="mot15-2D", min_confidence=1)
+
         pred = mm.io.loadtxt(pred_file, fmt="mot15-2D")
+
     except Exception as e:
         print(f"Lỗi nạp file. Hãy kiểm tra lại định dạng file: {e}")
         return 
@@ -70,8 +83,8 @@ def evaluate_tracking(gt_file, pred_file):
 
 if __name__ == "__main__":
     mot_dir = os.path.join(os.getcwd(), "utils")
-    GT_PATH = os.path.join(mot_dir, "DJI_0430(2).txt")   # File gán nhãn bằng DarkLabel
-    PRED_PATH = os.path.join(mot_dir, "pred_0430_20262027_202059.txt") # File yolo_engine.py xuất ra
+    GT_PATH = os.path.join(mot_dir, "1.txt")   # File gán nhãn bằng DarkLabel
+    PRED_PATH = os.path.join(mot_dir, "pred_1_20260228_154139.txt") # File yolo_engine.py xuất ra
     
     print(GT_PATH + "\n" + PRED_PATH)
     if os.path.exists(GT_PATH) and os.path.exists(PRED_PATH):
