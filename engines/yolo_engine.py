@@ -6,6 +6,7 @@ from ultralytics import YOLO
 from tkinter import messagebox
 from utils.report_utils import save_test_report
 
+timestamp = time.strftime("%Y%M%d_%H%M%S")
 class YoloTester:
     def __init__(self, model_path, video_path, output_folder, imgsz, stride, conf, iou, stop_event, tracker_type="bytetrack.yaml"):
         self.model_path = model_path
@@ -36,6 +37,7 @@ class YoloTester:
                 "default": {"name": "Obj", "color": (255, 255, 255)} 
             }
         }
+
         # -----------------------------------------
 
         try:
@@ -74,7 +76,10 @@ class YoloTester:
         processed_count = 0
         frame_data = []
         all_confs = []
-        unique_ids = set() 
+        unique_ids = set()
+
+        # Mảng lưu kết quả MOT
+        mot_predictions = []
 
         while cap.isOpened() and not self.stop_event.is_set():
             success, frame = cap.read()
@@ -92,7 +97,7 @@ class YoloTester:
             end_t = time.time()
             fps_curr = 1.0 / (end_t - start_t) if (end_t - start_t) > 0 else 0
             
-            # --- CUSTOM DRAWING LOGIC (BẮT ĐẦU VẼ TAY) ---
+            # --- DRAWING LOGIC ---
             annotated_frame = frame.copy() # Copy ảnh gốc để vẽ
             overlay = frame.copy()         # Layer để vẽ độ trong suốt (transparency)
             
@@ -112,7 +117,15 @@ class YoloTester:
                 # Vòng lặp vẽ từng box
                 for box, track_id, cls_id, conf in zip(xyxys, ids, clss, confs):
                     x1, y1, x2, y2 = box
-                    
+
+                    # Lưu mảng MOT
+                    w = x2 - x1
+                    h = y2 - y1
+
+                    # Thông tin tracking (10 cột)
+                    if track_id != -1:
+                        mot_line = f"{frame_idx},{track_id},{x1},{y1},{w},{h},{conf:.4f},{cls_id},-1,-1"
+                        mot_predictions.append(mot_line)
                     # 1. Lấy thông tin class từ Config
                     class_info = DRAW_CFG["classes"].get(cls_id, DRAW_CFG["classes"]["default"])
                     color = class_info["color"]
@@ -170,6 +183,12 @@ class YoloTester:
 
             if cv2.waitKey(1) & 0xFF == ord('q'): break
 
+        # Lưu file pred.txt
+        pred_file = f"pred_{timestamp}.txt"
+        pred_path = os.path.join(self.output_folder, pred_file)
+        with open(pred_path, 'w') as f:
+            f.write("\n".join(mot_predictions))
+        print(f"Đã lưu kết quả dự đoán tại: {pred_path}")
         cap.release()
         out.release()
         cv2.destroyAllWindows()

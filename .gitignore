@@ -19,6 +19,8 @@ module_yolo/
 
 *.tmp
 *.log
+*.txt
+*.csv
 
 /export_int8.py
 /test_rf_onnx.py
