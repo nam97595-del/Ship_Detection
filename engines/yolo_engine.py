@@ -185,11 +185,13 @@ class YoloTester:
             if cv2.waitKey(1) & 0xFF == ord('q'): break
 
         # Lưu file pred.txt
-        pred_file = f"pred_{timestamp}.txt"
+        pred_file = f"pred_{input_name}_{timestamp}.txt"
         pred_path = os.path.join(self.output_folder, pred_file)
+        
         with open(pred_path, 'w') as f:
             f.write("\n".join(mot_predictions))
-        print(f"Đã lưu kết quả dự đoán tại: {pred_path}")
+        print(f"✅ Đã lưu kết quả dự đoán (MOT format) tại: {pred_path}")
+
         cap.release()
         out.release()
         cv2.destroyAllWindows()
