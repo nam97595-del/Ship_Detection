@@ -13,24 +13,35 @@ def evaluate_tracking(gt_file, pred_file):
     gt_basename = gt_filename.replace('.txt', '')
 
     try:
+        # 1. XỬ LÝ FILE GROUND TRUTH (GT)
         gt_df = pd.read_csv(gt_file, header=None)
- 
-        if (gt_df[1] == 0).any():
-            print("🔹 Phát hiện ID = 0 trong file Ground Truth, đang tự động điều chỉnh...")
-            gt_df[1] = gt_df[1] + 1
-            
-            temp_gt_file = "temp_gt_fixed.txt"
-            gt_df.to_csv(temp_gt_file, header=False, index=False)
-            gt = mm.io.loadtxt(temp_gt_file, fmt="mot15-2D", min_confidence=1)
-            os.remove(temp_gt_file)
-        else:
-            gt = mm.io.loadtxt(gt_file, fmt="mot15-2D", min_confidence=1)
+        gt_df[1] = gt_df[1] + 1000 
+        
+        # --- BỘ LỌC DỌN RÁC (TRÁNH LỖI KEYERROR) ---
+        # Giữ lại frame và ID độc nhất, xóa các dòng trùng lặp (nếu có do đánh nhầm)
+        gt_df = gt_df.drop_duplicates(subset=[0, 1], keep='first')
+        
+        temp_gt_file = "temp_gt_fixed.txt"
+        gt_df.to_csv(temp_gt_file, header=False, index=False)
+        gt = mm.io.loadtxt(temp_gt_file, fmt="mot15-2D", min_confidence=1)
+        
+        # 2. XỬ LÝ FILE PREDICTION (PRED)
+        pred_df = pd.read_csv(pred_file, header=None)
+        pred_df[1] = pred_df[1] + 1000 
+        
+        # --- BỘ LỌC DỌN RÁC CHO PRED ---
+        pred_df = pred_df.drop_duplicates(subset=[0, 1], keep='first')
+        
+        temp_pred_file = "temp_pred_fixed.txt"
+        pred_df.to_csv(temp_pred_file, header=False, index=False)
+        pred = mm.io.loadtxt(temp_pred_file, fmt="mot15-2D")
 
-        pred = mm.io.loadtxt(pred_file, fmt="mot15-2D")
+        os.remove(temp_gt_file)
+        os.remove(temp_pred_file)
 
     except Exception as e:
         print(f"Lỗi nạp file. Hãy kiểm tra lại định dạng file: {e}")
-        return 
+        return
     
     print("🔹 Đang tính toán phép khớp (Matching)...")
     # Tính toán ma trận khoảng cách dựa trên IoU
