@@ -32,6 +32,8 @@ project_root
 │   ├── __init__.py
 │   ├── export_engine.py    # Xử lý logic xuất dữ liệu ra Excel/Database
 │   └── report_utils.py     # Các hàm hỗ trợ định dạng báo cáo (CSV, TXT)
+├── Output/                # Thư mục chứa kết quả sau khi chạy
+│   ├── ship_images/       # Ảnh tàu được crop từ YOLO
 ├── sql/
 │   └── lenhsql.sql         # File chứa cấu trúc bảng và câu lệnh khởi tạo Database
 ├── video/                  # Chứa video mẫu để test (nên để file nhẹ)
