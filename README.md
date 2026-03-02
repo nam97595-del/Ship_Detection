@@ -34,7 +34,6 @@ project_root
 │   └── report_utils.py     # Các hàm hỗ trợ định dạng báo cáo (CSV, TXT)
 ├── sql/
 │   └── lenhsql.sql         # File chứa cấu trúc bảng và câu lệnh khởi tạo Database
-
 ├── video/                  # Chứa video mẫu để test (nên để file nhẹ)
 │   └── vid.mp4
 ├── .gitignore              # Loại bỏ các file rác, __pycache__, venv
