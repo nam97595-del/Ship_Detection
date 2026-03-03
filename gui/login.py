@@ -10,7 +10,6 @@ class LoginWindow:
         self.root.configure(bg="#f0f2f5")
         self.success_callback = success_callback
 
-        # Căn giữa cửa sổ
         self.root.update_idletasks()
         width = self.root.winfo_width()
         height = self.root.winfo_height()
@@ -18,15 +17,12 @@ class LoginWindow:
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
 
-        # Khung đăng nhập chính
         self.frame = tk.Frame(self.root, bg="white", bd=0, relief="flat", padx=30, pady=30)
         self.frame.place(relx=0.5, rely=0.5, anchor="center", width=320, height=360)
 
-        # Tiêu đề
         tk.Label(self.frame, text="ĐĂNG NHẬP", font=("Segoe UI", 18, "bold"),
                  bg="white", fg="#1c1e21").pack(pady=(0, 20))
 
-        # Username
         tk.Label(self.frame, text="Tên đăng nhập", font=("Segoe UI", 10),
                  bg="white", fg="#606770").pack(anchor="w")
         self.ent_user = tk.Entry(self.frame, font=("Segoe UI", 11), bg="#f5f6f7",
@@ -34,7 +30,6 @@ class LoginWindow:
         self.ent_user.pack(fill="x", ipady=8, pady=(5, 15))
         self.ent_user.focus_set()
 
-        # Password
         tk.Label(self.frame, text="Mật khẩu", font=("Segoe UI", 10),
                  bg="white", fg="#606770").pack(anchor="w")
 
@@ -50,17 +45,14 @@ class LoginWindow:
         self.btn_show.pack(side="right", padx=10)
         self.btn_show.bind("<Button-1>", lambda e: self.toggle_password())
 
-        # Nút Đăng nhập
         self.btn_login = tk.Button(self.frame, text="Đăng nhập", font=("Segoe UI", 12, "bold"),
                                    bg="#007bff", fg="white", relief="flat", bd=0,
                                    cursor="hand2", command=self.check_login)
         self.btn_login.pack(fill="x", ipady=10, pady=(25, 10))
 
-        # Hiệu ứng hover
         self.btn_login.bind("<Enter>", lambda e: self.btn_login.configure(bg="#0056b3"))
         self.btn_login.bind("<Leave>", lambda e: self.btn_login.configure(bg="#007bff"))
 
-        # Nhấn Enter để đăng nhập
         self.root.bind('<Return>', lambda event: self.check_login())
 
     def toggle_password(self):
@@ -87,7 +79,6 @@ class LoginWindow:
 
         try:
             cursor = conn.cursor()
-            
             cursor.execute(
                 "SELECT * FROM users WHERE username = ? AND password = ?",
                 (username, password)
@@ -106,7 +97,6 @@ class LoginWindow:
 
         
     def on_closing(self):
-        """Gọi khi người dùng bấm đóng cửa sổ login"""
         self.root.destroy()
 
 
