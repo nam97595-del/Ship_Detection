@@ -32,6 +32,7 @@ project_root
 │   ├── __init__.py
 │   ├── export_engine.py    # Xử lý logic xuất dữ liệu ra Excel/Database
 │   └── report_utils.py     # Các hàm hỗ trợ định dạng báo cáo (CSV, TXT)
+│   └── connect.py         # Các hàm liên quan đến kết nối cơ sở dữ liệu
 ├── Output/                # Thư mục chứa kết quả sau khi chạy
 │   ├── ship_images/       # Ảnh tàu được crop từ YOLO
 ├── sql/
