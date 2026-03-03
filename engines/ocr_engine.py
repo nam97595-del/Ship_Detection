@@ -1,6 +1,4 @@
 import os
-
-# PHẢI đặt trước mọi import liên quan paddle
 os.environ['FLAGS_use_onednn'] = '0'
 os.environ['FLAGS_enable_pir_api'] = '0'
 os.environ['FLAGS_enable_pir_in_executor'] = '0'
