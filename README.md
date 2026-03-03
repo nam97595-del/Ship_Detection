@@ -65,15 +65,10 @@ Chọn server tương ứng
 Nhấn New Query
 Copy toàn bộ nội dung file lenhsql.sql
 Nhấn Execute
-Thay servername ở máy bạn ở file yolo_engine.py
+Thay servername ở máy bạn ở file connect.py
 
 ```python
 self.server = '.\\SQLEXPRESS'
-```
-Thay servername ở máy bạn ở file main_window.py
-
-```python
-'SERVER=.\\SQLEXPRESS;'
 ```
 
 ## Hướng Dẫn Sử Dụng

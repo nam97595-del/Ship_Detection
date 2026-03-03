@@ -3,10 +3,13 @@ import time
 import os
 import threading
 import queue
-import pyodbc  
 from ultralytics import YOLO
 from engines.ocr_engine import ShipOCR
 from utils.report_utils import save_test_report
+
+# Import module kết nối database chung
+from utils.connect import get_db_connection
+
 
 class YoloTester:
     def __init__(self, model_path, input_source, output_folder,
@@ -21,17 +24,12 @@ class YoloTester:
         self.use_ocr = use_ocr
         self.stop_event = False
 
-        # --- CẤU HÌNH DATABASE ---
-        self.server = '.\\SQLEXPRESS'
-        self.database = 'shipdb'
-        self.db_conn = self.connect_db()
-
         print(f">> Loading YOLO: {model_path}")
         self.model = YOLO(model_path)
 
         self.ocr_queue = queue.Queue()
         self.ocr_engine = None
-        
+
         if use_ocr:
             try:
                 self.ocr_engine = ShipOCR()
@@ -43,19 +41,6 @@ class YoloTester:
         self.current_objects = {}           # Lưu trữ đối tượng đang hiện hữu trong frame
         self.all_confs = []                 # Thu thập confidence cho báo cáo
 
-    def connect_db(self):
-        try:
-            conn_str = (
-                f'DRIVER={{ODBC Driver 17 for SQL Server}};'
-                f'SERVER={self.server};'
-                f'DATABASE={self.database};'
-                'Trusted_Connection=yes;'
-            )
-            return pyodbc.connect(conn_str)
-        except Exception as e:
-            print(f">> Lỗi kết nối Database: {e}")
-            return None
-
     def ocr_worker(self):
         """Worker xử lý ảnh từ hàng đợi và cập nhật Database"""
         print(">> OCR Worker started...")
@@ -63,9 +48,9 @@ class YoloTester:
             try:
                 item = self.ocr_queue.get(timeout=0.5)
                 track_id, crop_img, is_priority = item
-                
+
                 results = self.ocr_engine.ocr_image(crop_img)
-                
+
                 if results:
                     text = results[0]["text"]
                     score = results[0]["score"]
@@ -76,53 +61,60 @@ class YoloTester:
                     self.ocr_cache[track_id]["final"] = text
 
                     # Cập nhật số hiệu vào Database
-                    if self.db_conn:
+                    conn = get_db_connection()
+                    if conn:
                         try:
-                            cursor = self.db_conn.cursor()
+                            cursor = conn.cursor()
                             query = "UPDATE shiplog SET so_hieu = ? WHERE track_id = ?"
                             cursor.execute(query, (text, int(track_id)))
-                            self.db_conn.commit()
+                            conn.commit()
+                            print(f">> DB Updated: so_hieu = {text} cho track_id {track_id}")
                         except Exception as db_e:
                             print(f"DB Update Error: {db_e}")
-                
+
                 self.ocr_queue.task_done()
             except queue.Empty:
-                if self.stop_event: break
+                if self.stop_event:
+                    break
             except Exception as e:
                 print(f"OCR Worker Error: {e}")
 
     def request_manual_ocr(self, track_id):
         if track_id in self.current_objects:
             obj = self.current_objects[track_id]
-            print(f">> Clicked ID {track_id}. Requesting OCR...")
+            print(f">> Clicked ID {track_id}. Requesting manual OCR...")
             self.ocr_queue.put((track_id, obj["crop"].copy(), True))
 
     def log_new_ship(self, track_id, class_name, crop_img=None):
         """Kiểm tra và ghi log tàu mới vào DB, lưu ảnh crop"""
-        if self.db_conn:
-            try:
-                cursor = self.db_conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM shiplog WHERE track_id = ?", (int(track_id),))
-                if cursor.fetchone()[0] == 0:
-                    img_path = None
-                    if crop_img is not None and crop_img.size > 0:
-                        img_dir = os.path.join(self.output_folder, "ship_images")
-                        os.makedirs(img_dir, exist_ok=True)
-                        img_filename = f"ship_{track_id}_{int(time.time())}.jpg"
-                        img_path = os.path.join(img_dir, img_filename)
-                        cv2.imwrite(img_path, crop_img)
-                        print(f">> Saved crop image: {img_path}")
+        conn = get_db_connection()
+        if not conn:
+            print(">> Không kết nối được DB → bỏ qua log tàu mới")
+            return
 
-                    query = """
-                        INSERT INTO shiplog 
-                        (track_id, class_name, gio_phat_hien, hinh_anh_path) 
-                        VALUES (?, ?, GETDATE(), ?)
-                    """
-                    cursor.execute(query, (int(track_id), class_name, img_path))
-                    self.db_conn.commit()
-                    print(f">> DB: Logged New Ship ID {track_id}")
-            except Exception as e:
-                print(f"DB Insert Error: {e}")
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM shiplog WHERE track_id = ?", (int(track_id),))
+            if cursor.fetchone()[0] == 0:
+                img_path = None
+                if crop_img is not None and crop_img.size > 0:
+                    img_dir = os.path.join(self.output_folder, "ship_images")
+                    os.makedirs(img_dir, exist_ok=True)
+                    img_filename = f"ship_{track_id}_{int(time.time())}.jpg"
+                    img_path = os.path.join(img_dir, img_filename)
+                    cv2.imwrite(img_path, crop_img)
+                    print(f">> Saved crop image: {img_path}")
+
+                query = """
+                    INSERT INTO shiplog 
+                    (track_id, class_name, gio_phat_hien, hinh_anh_path) 
+                    VALUES (?, ?, GETDATE(), ?)
+                """
+                cursor.execute(query, (int(track_id), class_name, img_path))
+                conn.commit()
+                print(f">> DB: Logged New Ship ID {track_id}")
+        except Exception as e:
+            print(f"DB Insert Error: {e}")
 
     def run(self, update_gui_callback):
         cap = cv2.VideoCapture(self.input_source)
@@ -191,11 +183,11 @@ class YoloTester:
                     new_current_objects[track_id] = {
                         "bbox": (x1, y1, x2, y2),
                         "ocr": text_display,
-                        "crop": crop_to_use  # dùng crop lần đầu, không cập nhật mỗi frame
+                        "crop": crop_to_use
                     }
 
                     if text_display != "...":
-                        cv2.putText(annotated_frame, text_display, (x1, y1-10), 
+                        cv2.putText(annotated_frame, text_display, (x1, y1-10),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
             self.current_objects = new_current_objects
@@ -216,8 +208,6 @@ class YoloTester:
 
         cap.release()
         out.release()
-        if self.db_conn:
-            self.db_conn.close()
 
         # Tạo báo cáo
         if data_report:

@@ -4,26 +4,29 @@ from PIL import Image, ImageTk
 import cv2
 import threading
 import os
-import pyodbc
+
+# Import module kết nối database chung
+from utils.connect import get_db_connection, close_db_connection
 
 from engines.yolo_engine import YoloTester
+
 
 class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Hệ thống Giám sát Tàu biển - YOLO & OCR")
         self.root.geometry("1400x900")
-        
+
         self.output_dir = tk.StringVar()
         self.model_path = tk.StringVar()
         self.video_path = tk.StringVar()
         self.conf_val = tk.DoubleVar(value=0.5)
-        self.use_ocr_var = tk.BooleanVar(value=True) 
+        self.use_ocr_var = tk.BooleanVar(value=True)
         self.selected_track_id = None
         self.tree_img_paths = {}
 
         self.setup_navbar()
-        
+
         self.container = tk.Frame(self.root)
         self.container.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
@@ -33,28 +36,38 @@ class App:
 
         self.show_frame("monitoring")
 
-        # Bind phím F5 toàn cục
+        # Bind phím F5 toàn cục để refresh database
         self.root.bind("<F5>", lambda e: self.refresh_database())
+
+        # Bind đóng cửa sổ
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def setup_navbar(self):
         navbar = tk.Frame(self.root, bg="#2c3e50", height=50)
         navbar.pack(side=tk.TOP, fill=tk.X)
 
-        nav_style = {"bg": "#2c3e50", "fg": "white", "font": ("Arial", 11, "bold"), 
-                     "relief": "flat", "activebackground": "#34495e", "activeforeground": "white", "padx": 20}
+        nav_style = {
+            "bg": "#2c3e50",
+            "fg": "white",
+            "font": ("Arial", 11, "bold"),
+            "relief": "flat",
+            "activebackground": "#34495e",
+            "activeforeground": "white",
+            "padx": 20
+        }
 
-        tk.Button(navbar, text="🏠 Hệ thống giám sát", **nav_style, 
+        tk.Button(navbar, text="🏠 Hệ thống giám sát", **nav_style,
                   command=lambda: self.show_frame("monitoring")).pack(side=tk.LEFT)
-        tk.Button(navbar, text="📊 Cơ sở dữ liệu", **nav_style, 
+        tk.Button(navbar, text="📊 Cơ sở dữ liệu", **nav_style,
                   command=lambda: self.show_frame("database")).pack(side=tk.LEFT)
-        tk.Button(navbar, text="🚪 Đăng xuất", **nav_style, 
+        tk.Button(navbar, text="🚪 Đăng xuất", **nav_style,
                   command=self.logout).pack(side=tk.RIGHT)
 
     def show_frame(self, page_name):
         frame = self.frames[page_name]
         frame.tkraise()
         if page_name == "database":
-            self.load_database_data()
+            self.refresh_database()  # tự động load khi chuyển sang tab
 
     # ================= TRANG GIÁM SÁT =================
     def setup_monitoring_page(self):
@@ -66,7 +79,7 @@ class App:
 
         control_frame = tk.Frame(page, bg="#f0f0f0", width=350)
         control_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
-        
+
         tk.Label(control_frame, text="BẢNG ĐIỀU KHIỂN", font=("Arial", 14, "bold"), bg="#f0f0f0").pack(pady=10)
 
         tk.Button(control_frame, text="📁 Chọn Model", command=self.choose_model).pack(fill=tk.X, pady=5)
@@ -96,13 +109,13 @@ class App:
         self.skip_frame_entry.pack(side=tk.LEFT)
 
         tk.Label(config_group, text="Conf Thresh:", bg="#f0f0f0").pack(anchor="w", pady=(5, 0))
-        tk.Scale(config_group, from_=0.0, to=1.0, resolution=0.01, 
+        tk.Scale(config_group, from_=0.0, to=1.0, resolution=0.01,
                  orient=tk.HORIZONTAL, variable=self.conf_val, bg="#f0f0f0").pack(fill=tk.X)
 
-        tk.Checkbutton(control_frame, text="Kích hoạt nhận diện OCR", variable=self.use_ocr_var, 
+        tk.Checkbutton(control_frame, text="Kích hoạt nhận diện OCR", variable=self.use_ocr_var,
                        font=("Arial", 10, "italic"), bg="#f0f0f0").pack(pady=10)
 
-        tk.Button(control_frame, text="▶ BẮT ĐẦU", bg="#27ae60", fg="white", font=("Arial", 12, "bold"), 
+        tk.Button(control_frame, text="▶ BẮT ĐẦU", bg="#27ae60", fg="white", font=("Arial", 12, "bold"),
                   height=2, command=self.start_process).pack(fill=tk.X, pady=5)
         tk.Button(control_frame, text="⏹ DỪNG", bg="#c0392b", fg="white", command=self.stop_process).pack(fill=tk.X)
 
@@ -111,7 +124,7 @@ class App:
         tk.Label(self.detail_frame, text="CHI TIẾT TÀU", font=("Arial", 12, "bold"), bg="white").pack(pady=10)
         self.detail_canvas = tk.Canvas(self.detail_frame, width=280, height=200, bg="gray")
         self.detail_canvas.pack(pady=5)
-        self.detail_text = tk.Label(self.detail_frame, text="Click vào tàu trên video...", 
+        self.detail_text = tk.Label(self.detail_frame, text="Click vào tàu trên video...",
                                     font=("Arial", 11), wraplength=280, justify=tk.LEFT, bg="white")
         self.detail_text.pack()
 
@@ -125,27 +138,24 @@ class App:
         self.frames["database"] = page
         page.grid(row=0, column=0, sticky="nsew")
 
-        # Header + nút Refresh
         header_frame = tk.Frame(page, bg="#ecf0f1")
         header_frame.pack(fill=tk.X, padx=20, pady=15)
 
-        tk.Label(header_frame, text="NHẬT KÝ HỆ THỐNG", 
+        tk.Label(header_frame, text="NHẬT KÝ HỆ THỐNG",
                  font=("Arial", 18, "bold"), bg="#ecf0f1").pack(side=tk.LEFT)
 
-        self.refresh_status = tk.Label(header_frame, text="", fg="#27ae60", 
-                                        bg="#ecf0f1", font=("Arial", 10, "italic"))
+        self.refresh_status = tk.Label(header_frame, text="", fg="#27ae60",
+                                       bg="#ecf0f1", font=("Arial", 10, "italic"))
         self.refresh_status.pack(side=tk.RIGHT, padx=10)
 
-        tk.Button(header_frame, text="🔄  Làm mới  (F5)", 
+        tk.Button(header_frame, text="🔄  Làm mới  (F5)",
                   command=self.refresh_database,
                   bg="#27ae60", fg="white", font=("Arial", 11, "bold"),
                   padx=15, pady=5, relief="flat", cursor="hand2").pack(side=tk.RIGHT)
 
-        # Frame chính: bảng trái + ảnh phải
         main_frame = tk.Frame(page, bg="#ecf0f1")
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
 
-        # --- Treeview bên trái ---
         tree_frame = tk.Frame(main_frame, bg="#ecf0f1")
         tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -166,7 +176,6 @@ class App:
 
         self.tree.bind("<<TreeviewSelect>>", self.on_tree_select)
 
-        # --- Panel xem ảnh bên phải ---
         img_panel = tk.Frame(main_frame, bg="white", width=320, relief="ridge", bd=2)
         img_panel.pack(side=tk.RIGHT, fill=tk.Y, padx=(15, 0))
         img_panel.pack_propagate(False)
@@ -175,21 +184,19 @@ class App:
 
         self.db_img_canvas = tk.Canvas(img_panel, width=290, height=260, bg="#dddddd")
         self.db_img_canvas.pack(pady=5, padx=10)
-        self.db_img_canvas.create_text(145, 130, text="Chọn một hàng\nđể xem ảnh", 
-                                        fill="gray", font=("Arial", 12))
+        self.db_img_canvas.create_text(145, 130, text="Chọn một hàng\nđể xem ảnh",
+                                       fill="gray", font=("Arial", 12))
 
-        self.db_info_label = tk.Label(img_panel, text="", font=("Arial", 10), 
-                                       bg="white", wraplength=290, justify=tk.LEFT)
+        self.db_info_label = tk.Label(img_panel, text="", font=("Arial", 10),
+                                      bg="white", wraplength=290, justify=tk.LEFT)
         self.db_info_label.pack(pady=8, padx=10)
 
-        # === THÊM NÚT OCR LẠI Ở ĐÂY ===
-        tk.Button(img_panel, text="🔍 OCR LẠI (Thử lại số hiệu)", 
-                  command=self.manual_ocr_selected_ship, 
+        tk.Button(img_panel, text="🔍 OCR LẠI (Thử lại số hiệu)",
+                  command=self.manual_ocr_selected_ship,
                   bg="#e67e22", fg="white", font=("Arial", 11, "bold"),
                   padx=10, pady=8).pack(pady=10)
 
     def manual_ocr_selected_ship(self):
-        """Yêu cầu OCR lại cho tàu đang được chọn trong Treeview"""
         selected = self.tree.selection()
         if not selected:
             messagebox.showwarning("Chưa chọn", "Vui lòng chọn một tàu trong bảng trước!")
@@ -197,7 +204,7 @@ class App:
 
         item_id = selected[0]
         values = self.tree.item(item_id, "values")
-        track_id_str = values[0]  # Cột ID Tracking
+        track_id_str = values[0]
 
         try:
             track_id = int(track_id_str)
@@ -205,33 +212,29 @@ class App:
             messagebox.showerror("Lỗi", "ID Tracking không hợp lệ!")
             return
 
-        # Ưu tiên dùng engine nếu đang chạy (dùng crop hiện tại)
-        if hasattr(self, 'engine') and self.engine is not None and track_id in self.engine.current_objects:
-            self.engine.request_manual_ocr(track_id)
-            messagebox.showinfo("Đã gửi", f"Đã yêu cầu OCR thủ công cho ID {track_id}.\nKết quả sẽ cập nhật trong bảng sau vài giây.")
-            return
-
-        # Nếu tàu không còn trong frame → dùng ảnh lưu từ DB (nếu có)
-        img_path = self.tree_img_paths.get(item_id, "")
-        if img_path and os.path.exists(img_path):
-            try:
-                crop_img = cv2.imread(img_path)
-                if crop_img is None:
-                    raise ValueError("Không đọc được ảnh")
-
-                # Gửi vào queue OCR (dùng engine nếu có, hoặc thông báo)
-                if hasattr(self, 'engine') and self.engine is not None:
-                    self.engine.ocr_queue.put((track_id, crop_img, True))
-                    messagebox.showinfo("Đã gửi", f"OCR thủ công từ ảnh lưu cho ID {track_id}.")
+        if hasattr(self, 'engine') and self.engine is not None:
+            if track_id in self.engine.current_objects:
+                self.engine.request_manual_ocr(track_id)
+                messagebox.showinfo("Đã gửi", f"Đã yêu cầu OCR thủ công cho ID {track_id}.\nKết quả sẽ cập nhật sau vài giây.")
+                return
+            else:
+                # Dùng ảnh từ DB nếu có
+                img_path = self.tree_img_paths.get(item_id, "")
+                if img_path and os.path.exists(img_path):
+                    try:
+                        crop_img = cv2.imread(img_path)
+                        if crop_img is not None:
+                            self.engine.ocr_queue.put((track_id, crop_img, True))
+                            messagebox.showinfo("Đã gửi", f"OCR thủ công từ ảnh lưu cho ID {track_id}.")
+                            return
+                    except Exception as e:
+                        messagebox.showerror("Lỗi", f"Không thể đọc ảnh để OCR lại: {str(e)}")
                 else:
-                    messagebox.showwarning("Cảnh báo", "Hệ thống giám sát chưa chạy.\nKhông thể OCR ngay lúc này, nhưng ảnh đã sẵn sàng.")
-            except Exception as e:
-                messagebox.showerror("Lỗi", f"Không thể load ảnh để OCR: {str(e)}")
+                    messagebox.showwarning("Không có ảnh", "Không tìm thấy ảnh crop để OCR lại.")
         else:
-            messagebox.showwarning("Không có ảnh", "Không tìm thấy ảnh crop của tàu này để OCR lại.")
+            messagebox.showwarning("Cảnh báo", "Hệ thống giám sát chưa chạy.\nKhông thể thực hiện OCR lúc này.")
 
     def refresh_database(self):
-        """Load lại dữ liệu - dùng cho nút Refresh và phím F5"""
         self.load_database_data()
         self.refresh_status.config(text="✅ Đã làm mới!")
         self.root.after(2000, lambda: self.refresh_status.config(text=""))
@@ -239,35 +242,36 @@ class App:
     def load_database_data(self):
         for i in self.tree.get_children():
             self.tree.delete(i)
-        self.tree_img_paths = {}
+        self.tree_img_paths.clear()
 
-        # Reset panel ảnh
+        # Reset giao diện ảnh
         self.db_img_canvas.delete("all")
-        self.db_img_canvas.create_text(145, 130, text="Chọn một hàng\nđể xem ảnh", 
-                                        fill="gray", font=("Arial", 12))
+        self.db_img_canvas.create_text(145, 130, text="Chọn một hàng\nđể xem ảnh",
+                                       fill="gray", font=("Arial", 12))
         self.db_info_label.config(text="")
 
+        conn = get_db_connection()
+        if not conn:
+            messagebox.showerror("Lỗi Database", "Không thể kết nối đến cơ sở dữ liệu!")
+            return
+
         try:
-            conn = pyodbc.connect(
-                'DRIVER={ODBC Driver 17 for SQL Server};'
-                'SERVER=.\\SQLEXPRESS;DATABASE=shipdb;Trusted_Connection=yes;'
-            )
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT track_id, class_name, ISNULL(so_hieu, 'N/A'), 
+                SELECT track_id, class_name, ISNULL(so_hieu, 'N/A'),
                        gio_phat_hien, ISNULL(hinh_anh_path, '')
-                FROM shiplog 
+                FROM shiplog
                 ORDER BY gio_phat_hien DESC
             """)
-            for row in cursor.fetchall():
+            rows = cursor.fetchall()
+            for row in rows:
                 item_id = self.tree.insert("", tk.END, values=(row[0], row[1], row[2], row[3]))
                 self.tree_img_paths[item_id] = row[4]
-            conn.close()
         except Exception as e:
-            print(f"Lỗi DB: {e}")
+            messagebox.showerror("Lỗi Truy vấn", f"Không thể tải dữ liệu từ cơ sở dữ liệu:\n{str(e)}")
+            print(f"Lỗi DB load: {e}")
 
     def on_tree_select(self, event):
-        """Click vào hàng -> hiển thị ảnh tàu bên phải"""
         selected = self.tree.selection()
         if not selected:
             return
@@ -286,29 +290,35 @@ class App:
         if img_path and os.path.exists(img_path):
             try:
                 img = cv2.imread(img_path)
+                if img is None:
+                    raise ValueError("Không đọc được ảnh")
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                 img = cv2.resize(img, (290, 260))
                 self.tk_db_img = ImageTk.PhotoImage(image=Image.fromarray(img))
                 self.db_img_canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_db_img)
             except Exception as e:
-                self.db_img_canvas.create_text(145, 130, text="⚠️ Lỗi load ảnh", 
-                                                fill="red", font=("Arial", 12))
+                self.db_img_canvas.create_text(145, 130, text="⚠️ Lỗi load ảnh",
+                                               fill="red", font=("Arial", 12))
+                print(f"Lỗi load ảnh DB: {e}")
         else:
-            self.db_img_canvas.create_text(145, 130, text="📷 Không có ảnh", 
-                                            fill="gray", font=("Arial", 12))
+            self.db_img_canvas.create_text(145, 130, text="📷 Không có ảnh",
+                                           fill="gray", font=("Arial", 12))
 
     # ================= LOGIC XỬ LÝ =================
     def choose_model(self):
         p = filedialog.askopenfilename(filetypes=[("Model", "*.pt *.engine")])
-        if p: self.model_path.set(p)
+        if p:
+            self.model_path.set(p)
 
     def choose_video(self):
         p = filedialog.askopenfilename(filetypes=[("Video", "*.mp4 *.avi")])
-        if p: self.video_path.set(p)
+        if p:
+            self.video_path.set(p)
 
     def choose_output_folder(self):
         p = filedialog.askdirectory()
-        if p: self.output_dir.set(p)
+        if p:
+            self.output_dir.set(p)
 
     def start_process(self):
         if not all([self.model_path.get(), self.video_path.get(), self.output_dir.get()]):
@@ -317,44 +327,54 @@ class App:
         try:
             img_sz = int(self.img_size_entry.get())
             skp = int(self.skip_frame_entry.get())
-        except:
-            messagebox.showerror("Lỗi", "Thông số phải là số nguyên!")
+        except ValueError:
+            messagebox.showerror("Lỗi", "Image Size và Skip Frame phải là số nguyên!")
             return
 
         self.selected_track_id = None
         os.makedirs(self.output_dir.get(), exist_ok=True)
+
         self.engine = YoloTester(
             model_path=self.model_path.get(),
             input_source=self.video_path.get(),
             output_folder=self.output_dir.get(),
-            conf=self.conf_val.get(), imgsz=img_sz, stride=skp,
+            conf=self.conf_val.get(),
+            imgsz=img_sz,
+            stride=skp,
             use_ocr=self.use_ocr_var.get()
         )
+
         self.thread = threading.Thread(target=self.engine.run, args=(self.update_frame,))
         self.thread.daemon = True
         self.thread.start()
 
     def stop_process(self):
-        if hasattr(self, 'engine'):
+        if hasattr(self, 'engine') and self.engine:
             self.engine.stop()
 
     def update_frame(self, frame, fps):
         h, w = frame.shape[:2]
         ch, cw = self.canvas_video.winfo_height(), self.canvas_video.winfo_width()
-        if ch > 0 and cw > 0:
-            scale = min(cw/w, ch/h)
-            nw, nh = int(w*scale), int(h*scale)
-            self.last_scale, self.last_offset = scale, ((cw-nw)//2, (ch-nh)//2)
-            img = cv2.resize(frame, (nw, nh))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            self.tk_img = ImageTk.PhotoImage(image=Image.fromarray(img))
-            self.canvas_video.create_image(cw//2, ch//2, anchor=tk.CENTER, image=self.tk_img)
+        if ch <= 0 or cw <= 0:
+            return
+
+        scale = min(cw / w, ch / h)
+        nw, nh = int(w * scale), int(h * scale)
+        self.last_scale = scale
+        self.last_offset = ((cw - nw) // 2, (ch - nh) // 2)
+
+        img = cv2.resize(frame, (nw, nh))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        self.tk_img = ImageTk.PhotoImage(image=Image.fromarray(img))
+        self.canvas_video.create_image(cw // 2, ch // 2, anchor=tk.CENTER, image=self.tk_img)
 
     def on_canvas_click(self, event):
         if not hasattr(self, 'engine') or not hasattr(self, 'last_scale'):
             return
+
         x_click = (event.x - self.last_offset[0]) / self.last_scale
         y_click = (event.y - self.last_offset[1]) / self.last_scale
+
         for tid, obj in self.engine.current_objects.items():
             x1, y1, x2, y2 = obj["bbox"]
             if x1 <= x_click <= x2 and y1 <= y_click <= y2:
@@ -371,17 +391,19 @@ class App:
         self.detail_canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_crop)
 
     def logout(self):
-        if messagebox.askyesno("Thoát", "Bạn muốn đăng xuất?"):
+        if messagebox.askyesno("Đăng xuất", "Bạn có chắc muốn đăng xuất?"):
             self.stop_process()
             self.root.destroy()
-            os.system('python main.py')
+            # Chạy lại file login (hoặc main.py chứa login)
+            os.system('python main.py')  # giả sử main.py là file login
 
     def on_closing(self):
         self.stop_process()
+        close_db_connection()  # Đóng kết nối DB khi thoát ứng dụng
         self.root.destroy()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = App(root)
-    root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
