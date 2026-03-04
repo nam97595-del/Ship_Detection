@@ -13,23 +13,19 @@ def evaluate_tracking(gt_file, pred_file):
     gt_basename = gt_filename.replace('.txt', '')
 
     try:
-        # 1. XỬ LÝ FILE GROUND TRUTH (GT)
+
         gt_df = pd.read_csv(gt_file, header=None)
         gt_df[1] = gt_df[1] + 1000 
         
-        # --- BỘ LỌC DỌN RÁC (TRÁNH LỖI KEYERROR) ---
-        # Giữ lại frame và ID độc nhất, xóa các dòng trùng lặp (nếu có do đánh nhầm)
         gt_df = gt_df.drop_duplicates(subset=[0, 1], keep='first')
         
         temp_gt_file = "temp_gt_fixed.txt"
         gt_df.to_csv(temp_gt_file, header=False, index=False)
         gt = mm.io.loadtxt(temp_gt_file, fmt="mot15-2D", min_confidence=1)
         
-        # 2. XỬ LÝ FILE PREDICTION (PRED)
         pred_df = pd.read_csv(pred_file, header=None)
         pred_df[1] = pred_df[1] + 1000 
         
-        # --- BỘ LỌC DỌN RÁC CHO PRED ---
         pred_df = pred_df.drop_duplicates(subset=[0, 1], keep='first')
         
         temp_pred_file = "temp_pred_fixed.txt"
@@ -94,8 +90,8 @@ def evaluate_tracking(gt_file, pred_file):
 
 if __name__ == "__main__":
     mot_dir = os.path.join(os.getcwd(), "utils")
-    GT_PATH = os.path.join(mot_dir, "1.txt")   # File gán nhãn bằng DarkLabel
-    PRED_PATH = os.path.join(mot_dir, "pred_1_20260228_154139.txt") # File yolo_engine.py xuất ra
+    GT_PATH = os.path.join(mot_dir, "vid_test_halong.txt")   # File gán nhãn bằng DarkLabel
+    PRED_PATH = os.path.join(mot_dir, "pred_vid_test_halong_20260302_100057.txt") # File yolo_engine.py xuất ra
     
     print(GT_PATH + "\n" + PRED_PATH)
     if os.path.exists(GT_PATH) and os.path.exists(PRED_PATH):
