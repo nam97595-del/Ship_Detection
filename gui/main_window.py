@@ -95,7 +95,7 @@ class App(tk.Tk):
         path = filedialog.askdirectory()
         if path:
             self.folder_video.set(path)
-            files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.avi', '.mkv'))]
+            files = [f for f in os.listdir(path) if f.endswith(('.mp4', '.avi', '.mkv', '.MP4'))]
             self.cb_videos['values'] = files
             if files: self.cb_videos.current(0)
 

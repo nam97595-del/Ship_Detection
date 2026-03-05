@@ -18,3 +18,5 @@ class ByteTrackWrapper(BaseTracker):
         
         tracks = self.tracker.update(bboxes_tho, frame)
         return tracks
+    
+    
