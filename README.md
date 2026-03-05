@@ -16,24 +16,7 @@ Công cụ kiểm thử và đánh giá hiệu năng mô hình YOLO (Object Trac
 
 ## 📂 Cấu Trúc Dự Án
 
-Dự án được tổ chức theo mô hình Modular để dễ dàng bảo trì và mở rộng:
 
-```text
-project_root/
-├── engines/
-│   ├── __init__.py
-│   └── yolo_engine.py     # Xử lý logic load model, tracking và vẽ hình
-├── gui/
-│   ├── __init__.py
-│   └── main_window.py     # Giao diện người dùng (Tkinter)
-├── utils/
-│   ├── __init__.py
-│   └── report_utils.py    # Các hàm hỗ trợ xuất báo cáo (CSV, TXT)
-├── .gitignore
-├── main.py                # File chạy chính của chương trình
-├── README.md              # Hướng dẫn sử dụng
-└── requirements.txt       # Danh sách thư viện cần thiết
-```
 
 ## Yêu Cầu Hệ Thống & Cài Đặt
 Yêu cầu
