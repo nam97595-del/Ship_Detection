@@ -15,8 +15,38 @@ Công cụ kiểm thử và đánh giá hiệu năng các mô hình object detec
     * Xuất file TXT báo cáo tổng hợp (FPS trung bình, tổng số đối tượng phát hiện, v.v.).
 
 ## 📂 Cấu Trúc Dự Án
-
-
+Dự án được thiết kế theo cấu trúc Modular
+````text
+Ship_Detection/
+├── main.py                    
+│
+├── gui/                       
+│   └── main_window.py         
+│
+├── engines/                   
+│   └── generic_engine.py      
+│
+├── detectors/                 
+│   ├── base_detector.py       
+│   ├── detector_factory.py    
+│   └── yolo_detector.py       
+│
+├── trackers/                 
+│   ├── base_tracker.py        
+│   ├── tracker_factory.py     
+│   └── bytetrack_wrapper.py   
+│
+├── utils/                   
+│   ├── __init__.py            
+│   ├── check_mota.py          
+│   └── report_utils.py        
+│
+├── models/                
+├── videos/                
+├── outputs/               
+├── .gitignore              
+└── README.md               
+````
 
 ## Yêu Cầu Hệ Thống & Cài Đặt
 Yêu cầu
