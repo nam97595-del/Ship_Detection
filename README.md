@@ -1,8 +1,8 @@
 # YOLO Model Testing Tool (Modular Version)
 
-Công cụ kiểm thử và đánh giá hiệu năng mô hình YOLO (Object Tracking) được xây dựng bằng Python và Tkinter. Ứng dụng hỗ trợ chạy các model đã train (định dạng `.pt`, `.onnx`, `.engine`) trên video, tự động xuất báo cáo hiệu năng (FPS, thời gian xử lý) và video kết quả.
+Công cụ kiểm thử và đánh giá hiệu năng các mô hình object detection được xây dựng bằng Python và Tkinter. Ứng dụng hỗ trợ chạy các model đã train (định dạng `.pt`, `.onnx`, `.engine`) trên video, tự động xuất báo cáo hiệu năng (FPS, thời gian xử lý) và video kết quả.
 
-<img width="601" height="727" alt="Image" src="https://github.com/user-attachments/assets/a2b14ab3-f0c7-4a68-9db2-2541f3f61363" />
+<img width="597" height="777" alt="Image" src="https://github.com/user-attachments/assets/55ac97d5-c675-42ba-836c-f45e70efed71" />
 
 ## 🚀 Tính Năng Chính
 
