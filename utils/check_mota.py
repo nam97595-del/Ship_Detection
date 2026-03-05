@@ -1,0 +1,100 @@
+import motmetrics as mm
+import pandas as pd
+import os
+import time
+
+timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+def evaluate_tracking(gt_file, pred_file):
+    print(f"Đang đối chiếu Ground Truth ({gt_file}) và Prediction ({pred_file})...")
+    
+    gt_filename = os.path.basename(gt_file)
+    pred_filename = os.path.basename(pred_file)
+    gt_basename = gt_filename.replace('.txt', '')
+
+    try:
+
+        gt_df = pd.read_csv(gt_file, header=None)
+        gt_df[1] = gt_df[1] + 1000 
+        
+        gt_df = gt_df.drop_duplicates(subset=[0, 1], keep='first')
+        
+        temp_gt_file = "temp_gt_fixed.txt"
+        gt_df.to_csv(temp_gt_file, header=False, index=False)
+        gt = mm.io.loadtxt(temp_gt_file, fmt="mot15-2D", min_confidence=1)
+        
+        pred_df = pd.read_csv(pred_file, header=None)
+        pred_df[1] = pred_df[1] + 1000 
+        
+        pred_df = pred_df.drop_duplicates(subset=[0, 1], keep='first')
+        
+        temp_pred_file = "temp_pred_fixed.txt"
+        pred_df.to_csv(temp_pred_file, header=False, index=False)
+        pred = mm.io.loadtxt(temp_pred_file, fmt="mot15-2D")
+
+        os.remove(temp_gt_file)
+        os.remove(temp_pred_file)
+
+    except Exception as e:
+        print(f"Lỗi nạp file. Hãy kiểm tra lại định dạng file: {e}")
+        return
+    
+    print("🔹 Đang tính toán phép khớp (Matching)...")
+    # Tính toán ma trận khoảng cách dựa trên IoU
+    # distth=0.5: Box máy tính vẽ trùng 50% mới tính đúng
+    acc = mm.utils.compare_to_groundtruth(gt, pred, 'iou', distth=0.5)
+
+    # Chọn các chỉ số (metrics)
+    mh = mm.metrics.create()
+    metrics = [
+        'num_frames', 'mota', 'idf1', 'idp', 'idr', 
+        'num_switches', 'num_false_positives', 'num_misses'
+    ]
+    
+    summary = mh.compute(acc, metrics=metrics, name=gt_basename)
+
+    # Hiển thị kết quả
+    str_summary = mm.io.render_summary(
+        summary,
+        formatters=mh.formatters,
+        namemap=mm.io.motchallenge_metric_names
+    )
+    
+    print("\n" + "="*60)
+    print("BẢNG KẾT QUẢ ĐÁNH GIÁ HIỆU NĂNG TRACKING (MOTA) 🏆")
+    print("="*60)
+    print(str_summary)
+    print("="*60)
+
+    # --- LƯU FILE ---
+    csv_filename = f"MOTA_results_{gt_basename}_{timestamp}.csv"
+    txt_filename = f"MOTA_results_{gt_basename}_{timestamp}.txt"
+    
+    csv_out_path = os.path.join(os.path.dirname(gt_file), csv_filename)
+    summary_export = summary.rename(columns=mm.io.motchallenge_metric_names)
+    summary_export.to_csv(csv_out_path)
+
+    txt_out_path = os.path.join(os.path.dirname(gt_file), txt_filename)
+    with open(txt_out_path, "w", encoding="utf-8") as f:
+        f.write("BẢNG KẾT QUẢ ĐÁNH GIÁ HIỆU NĂNG TRACKING (MOTA)\n")
+        f.write("="*60 + "\n")
+        f.write(f"File Ground Truth : {gt_filename}\n")
+        f.write(f"File Prediction   : {pred_filename}\n")
+        f.write("-" * 60 + "\n")
+        f.write(str_summary + "\n")
+        f.write("="*60 + "\n")
+
+    print(f"\n✅ Đã lưu kết quả ra file Excel (CSV): {csv_out_path}")
+    print(f"✅ Đã lưu kết quả ra file Text (TXT): {txt_out_path}")
+
+
+if __name__ == "__main__":
+    mot_dir = os.path.join(os.getcwd(), "utils")
+    GT_PATH = os.path.join(mot_dir, "vid_test_halong.txt")   # File gán nhãn bằng DarkLabel
+    PRED_PATH = os.path.join(mot_dir, "pred_vid_test_halong_20260302_100057.txt") # File yolo_engine.py xuất ra
+    
+    print(GT_PATH + "\n" + PRED_PATH)
+    if os.path.exists(GT_PATH) and os.path.exists(PRED_PATH):
+        evaluate_tracking(GT_PATH, PRED_PATH)
+    else:
+        print("❌ Không tìm thấy file gt.txt hoặc pred.txt trong thư mục hiện tại!")
