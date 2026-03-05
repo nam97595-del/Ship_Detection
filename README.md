@@ -77,7 +77,7 @@ Cấu hình:
 - Skip Frame: Số frame bỏ qua để tăng tốc độ (Mặc định: 3 - tức là xử lý 1 frame, bỏ qua 2 frame).
 - Conf Thresh: Ngưỡng tự tin để lọc kết quả.
 
-Bước 3: Chạy và xem kết quả. Nhấn nút "CHẠY TEST NGAY".
+Bước 3: Chạy và xem kết quả. Nhấn nút "BẮT ĐẦU TEST".
 - Cửa sổ video sẽ hiện lên với thông tin Tracking thời gian thực.
 - Nhấn phím q trên cửa sổ video để dừng sớm.
 
