@@ -5,7 +5,7 @@ from .base_detector import BaseDetector
 class YoloDetector(BaseDetector):
     def load_model(self):
         print(f"Đang load model YOLO từ: {self.model_path}")
-        self.model_path = YOLO(self.model_path)
+        self.model = YOLO(self.model_path)
 
     def detect(self, frame):
         results = self.model.predict(frame, conf=self.conf_thresh, imgsz=self.imgsz, verbose=False)
