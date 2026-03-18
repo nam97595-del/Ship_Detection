@@ -95,3 +95,8 @@ Bước 4: Xem báo cáo. Sau khi chạy xong, vào thư mục Output đã chọ
 - File video .mp4: Video đã được vẽ bounding box và ID.
 - File report .txt: Tổng hợp thống kê.
 - File data .csv: Dữ liệu chi tiết từng frame để vẽ biểu đồ.
+## ❗ Troubleshooting
+
+- Không nhận GPU → kiểm tra CUDA
+- Lỗi model → kiểm tra đường dẫn
+- Lỗi database → kiểm tra server SQL
