@@ -1,6 +1,7 @@
 from .bytetrack_wrapper import ByteTrackWrapper
 from .deepsort_wrapper import DeepSortWrapper
 from .botsort_wrapper import BotSortWrapper
+from .strongsort_wrapper import StrongSortWrapper
 def create_tracker(tracker_type):
     if tracker_type == "ByteTrack":
         return ByteTrackWrapper()
@@ -8,6 +9,8 @@ def create_tracker(tracker_type):
         return DeepSortWrapper()
     elif tracker_type == "BoT-SORT":
         return BotSortWrapper()
+    elif tracker_type == "StrongSORT":
+        return StrongSortWrapper()
     else:
         raise ValueError(f"Chưa hỗ trợ tracker: {tracker_type}")
     
