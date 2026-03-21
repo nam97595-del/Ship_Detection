@@ -48,7 +48,7 @@ class App(tk.Tk):
         cb_model_type.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
         tk.Label(frame_arch, text="Loại Tracker:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        cb_tracker_type = ttk.Combobox(frame_arch, textvariable=self.var_tracker_type, values=["ByteTrack", "DeepOcSort", "BoT-SORT", "StrongSORT", "BoostTrack", "HybridSort"], state="readonly", width=15)
+        cb_tracker_type = ttk.Combobox(frame_arch, textvariable=self.var_tracker_type, values=["ByteTrack", "DeepOcSort", "BoT-SORT", "StrongSORT", "BoostTrack", "HybridSort", "OcSort"], state="readonly", width=15)
         cb_tracker_type.grid(row=0, column=3, padx=5, pady=5, sticky="w")
 
         frame_file = tk.LabelFrame(main_frame, text="2. Cấu Hình File & Thư Mục", font=("Arial", 10, "bold"))
