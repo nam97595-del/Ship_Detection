@@ -1,8 +1,9 @@
+import cv2
 import logging
+import numpy as np
 from paddleocr import PaddleOCR
 
 logging.getLogger("ppocr").setLevel(logging.WARNING)
-
 
 class ShipOCR:
     def __init__(self, lang="en", use_angle_cls=True):
@@ -41,10 +42,11 @@ class ShipOCR:
                 text = line[1][0]
                 score = float(line[1][1])
 
-                results.append({
-                    "text": text,
-                    "score": score,
-                    "box": box
-                })
+                if score>0.7:
+                    results.append({
+                        "text": text,
+                        "score": score,
+                        "box": box
+                    })
 
         return results
