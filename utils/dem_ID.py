@@ -29,7 +29,7 @@ def count_tracked_objects(gt_file_path, pred_file_path):
     else:
         print("Tuyệt vời! Số lượng đối tượng track được khớp hoàn toàn với số lượng thực tế.")
 
-file_nhan_goc = r"E:\Lab Nghien Cuu\MOTA\mota-yolo12x-bytetrack\1.1(2).txt"
-file_du_doan = r"E:\Lab Nghien Cuu\MOTA\mota-yolo12x-bytetrack\pred_1.1(2)_20262027_202059.txt"
+file_nhan_goc = r"E:\Lab Nghien Cuu\MOTA\mota-yolo12x-botsort\5-bot.txt"
+file_du_doan = r"E:\Lab Nghien Cuu\MOTA\mota-yolo12x-botsort\pred_5-bot_20260301_090113.txt"
 
 count_tracked_objects(file_nhan_goc, file_du_doan)
