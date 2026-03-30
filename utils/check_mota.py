@@ -90,8 +90,8 @@ def evaluate_tracking(gt_file, pred_file):
 
 if __name__ == "__main__":
     mot_dir = os.path.join(os.getcwd(), "utils")
-    GT_PATH = os.path.join(mot_dir, "vid_test_halong.txt")   # File gán nhãn bằng DarkLabel
-    PRED_PATH = os.path.join(mot_dir, "pred_vid_test_halong_20260302_100057.txt") # File yolo_engine.py xuất ra
+    GT_PATH = os.path.join(mot_dir, "1.1(2).txt")   # File gán nhãn bằng DarkLabel
+    PRED_PATH = os.path.join(mot_dir, "pred_1.1_20260322_145012.txt") # File yolo_engine.py xuất ra
     
     print(GT_PATH + "\n" + PRED_PATH)
     if os.path.exists(GT_PATH) and os.path.exists(PRED_PATH):

@@ -1,8 +1,8 @@
 # YOLO Model Testing Tool (Modular Version)
 
-Công cụ kiểm thử và đánh giá hiệu năng mô hình YOLO (Object Tracking) được xây dựng bằng Python và Tkinter. Ứng dụng hỗ trợ chạy các model đã train (định dạng `.pt`, `.onnx`, `.engine`) trên video, tự động xuất báo cáo hiệu năng (FPS, thời gian xử lý) và video kết quả.
+Công cụ kiểm thử và đánh giá hiệu năng các mô hình object detection được xây dựng bằng Python và Tkinter. Ứng dụng hỗ trợ chạy các model đã train (định dạng `.pt`, `.onnx`, `.engine`) trên video, tự động xuất báo cáo hiệu năng (FPS, thời gian xử lý) và video kết quả.
 
-<img width="601" height="727" alt="Image" src="https://github.com/user-attachments/assets/a2b14ab3-f0c7-4a68-9db2-2541f3f61363" />
+<img width="597" height="777" alt="Image" src="https://github.com/user-attachments/assets/55ac97d5-c675-42ba-836c-f45e70efed71" />
 
 ## 🚀 Tính Năng Chính
 
@@ -15,25 +15,38 @@ Công cụ kiểm thử và đánh giá hiệu năng mô hình YOLO (Object Trac
     * Xuất file TXT báo cáo tổng hợp (FPS trung bình, tổng số đối tượng phát hiện, v.v.).
 
 ## 📂 Cấu Trúc Dự Án
-
-Dự án được tổ chức theo mô hình Modular để dễ dàng bảo trì và mở rộng:
-
-```text
-project_root/
-├── engines/
-│   ├── __init__.py
-│   └── yolo_engine.py     # Xử lý logic load model, tracking và vẽ hình
-├── gui/
-│   ├── __init__.py
-│   └── main_window.py     # Giao diện người dùng (Tkinter)
-├── utils/
-│   ├── __init__.py
-│   └── report_utils.py    # Các hàm hỗ trợ xuất báo cáo (CSV, TXT)
-├── .gitignore
-├── main.py                # File chạy chính của chương trình
-├── README.md              # Hướng dẫn sử dụng
-└── requirements.txt       # Danh sách thư viện cần thiết
-```
+Dự án được thiết kế theo cấu trúc Modular
+````text
+Ship_Detection/
+├── main.py                    
+│
+├── gui/                       
+│   └── main_window.py         
+│
+├── engines/                   
+│   └── generic_engine.py      
+│
+├── detectors/                 
+│   ├── base_detector.py       
+│   ├── detector_factory.py    
+│   └── yolo_detector.py       
+│
+├── trackers/                 
+│   ├── base_tracker.py        
+│   ├── tracker_factory.py     
+│   └── bytetrack_wrapper.py   
+│
+├── utils/                   
+│   ├── __init__.py            
+│   ├── check_mota.py          
+│   └── report_utils.py        
+│
+├── models/                
+├── videos/                
+├── outputs/               
+├── .gitignore              
+└── README.md               
+````
 
 ## Yêu Cầu Hệ Thống & Cài Đặt
 Yêu cầu
@@ -64,7 +77,7 @@ Cấu hình:
 - Skip Frame: Số frame bỏ qua để tăng tốc độ (Mặc định: 3 - tức là xử lý 1 frame, bỏ qua 2 frame).
 - Conf Thresh: Ngưỡng tự tin để lọc kết quả.
 
-Bước 3: Chạy và xem kết quả. Nhấn nút "CHẠY TEST NGAY".
+Bước 3: Chạy và xem kết quả. Nhấn nút "BẮT ĐẦU TEST".
 - Cửa sổ video sẽ hiện lên với thông tin Tracking thời gian thực.
 - Nhấn phím q trên cửa sổ video để dừng sớm.
 
