@@ -11,8 +11,8 @@ class MainView:
     def __init__(self, root, callbacks):
         self.root = root
         self.callbacks = callbacks
-        self.engine = None  # ← Khởi tạo engine = None để tránh AttributeError
-        self.root.title("AI Model Testing Tool - Modular Version")
+        self.engine = None  
+        self.root.title("Hệ thống phát hiện và phân loại tàu thuyền")
         self.root.geometry("1400x900")
 
         self.output_dir = tk.StringVar()

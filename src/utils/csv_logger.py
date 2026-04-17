@@ -6,6 +6,7 @@ Sử dụng pandas và lock để đảm bảo thread-safe khi ghi file
 import os
 import csv
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from threading import Lock
 from pathlib import Path
@@ -24,11 +25,24 @@ class CSVLogger:
         'class_name',       # Loại tàu (e.g., 'fishing_boat', 'speed_boat', 'passenger')
         'so_hieu_ocr',      # Số hiệu tàu (từ OCR)
         'do_tin_cay_ocr',   # Confidence score của OCR (0-1)
-        'toc_do_tb',        # Tốc độ trung bình (km/h)
         'gio_phat_hien',    # Giờ phát hiện (timestamp)
         'hinh_anh_path',    # Đường dẫn ảnh tàu (relative path)
         'video_source',     # Tên file video hoặc nguồn camera
     ]
+    
+    # Định nghĩa dtype cho các cột khi đọc CSV
+    CSV_DTYPES = {
+        'log_id': 'int64',
+        'unique_id': 'str',
+        'track_id': 'int64',
+        'session_id': 'str',
+        'class_name': 'str',
+        'so_hieu_ocr': 'object',        # Kiểu object để chứa cả string và NaN
+        'do_tin_cay_ocr': 'float64',
+        'gio_phat_hien': 'str',
+        'hinh_anh_path': 'str',
+        'video_source': 'str',
+    }
     
     def __init__(self, log_dir: str = None):
         """
@@ -52,6 +66,35 @@ class CSVLogger:
         # Counter cho log_id
         self.log_counter = self._get_next_log_id()
     
+    def _read_csv_with_dtypes(self) -> pd.DataFrame:
+        """
+        Đọc CSV file với dtype chính xác để tránh lỗi ép kiểu
+        Đảm bảo cột 'so_hieu_ocr' là kiểu object (có thể chứa cả string và NaN)
+        """
+        try:
+            df = pd.read_csv(self.csv_path, dtype=self.CSV_DTYPES, na_values=['nan', 'NaN', ''])
+            return df
+        except Exception as e:
+            print(f">> CSV Warning: Lỗi đọc CSV với dtype cụ thể, thử đọc bình thường: {e}")
+            try:
+                return pd.read_csv(self.csv_path)
+            except Exception as e2:
+                print(f">> CSV Error: Lỗi đọc CSV: {e2}")
+                return pd.DataFrame()
+    
+    def _ensure_correct_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Đảm bảo dataframe có dtype chính xác
+        Đặc biệt chuyển 'so_hieu_ocr' sang kiểu object nếu cần
+        """
+        # Chuyển so_hieu_ocr sang object type
+        if 'so_hieu_ocr' in df.columns:
+            df['so_hieu_ocr'] = df['so_hieu_ocr'].astype('object')
+            # Thay thế NaN bằng empty string hoặc giữ nguyên NaN
+            df['so_hieu_ocr'] = df['so_hieu_ocr'].fillna('N/A')
+        
+        return df
+    
     def _initialize_csv(self):
         """Tạo file CSV với header nếu chưa tồn tại, hoặc migrate nếu cần"""
         if not self.csv_path.exists():
@@ -62,13 +105,15 @@ class CSVLogger:
         else:
             # Kiểm tra nếu file cũ không có cột unique_id, thêm vào
             try:
-                df = pd.read_csv(self.csv_path)
+                df = self._read_csv_with_dtypes()
                 if 'unique_id' not in df.columns:
                     print(">> CSV Logger: Phát hiện file cũ - migrating để thêm cột unique_id...")
                     # Tạo unique_id từ session_id + track_id
                     df['unique_id'] = df['session_id'] + '_' + df['track_id'].astype(str)
                     # Sắp xếp lại cột theo đúng thứ tự
                     df = df[self.CSV_COLUMNS]
+                    # Đảm bảo dtype chính xác trước khi lưu
+                    df = self._ensure_correct_dtypes(df)
                     df.to_csv(self.csv_path, index=False, encoding='utf-8')
                     print(">> CSV Logger: Migration thành công - thêm cột unique_id")
                 else:
@@ -79,7 +124,7 @@ class CSVLogger:
     def _get_next_log_id(self) -> int:
         """Lấy log_id tiếp theo"""
         try:
-            df = pd.read_csv(self.csv_path)
+            df = self._read_csv_with_dtypes()
             if df.empty:
                 return 1
             return int(df['log_id'].max()) + 1 if 'log_id' in df.columns else 1
@@ -89,7 +134,7 @@ class CSVLogger:
     
     def append_log(self, track_id: int, session_id: str, class_name: str, 
                    video_source: str, so_hieu_ocr: str = "N/A", 
-                   do_tin_cay_ocr: float = 0.0, toc_do_tb: float = 0.0,
+                   do_tin_cay_ocr: float = 0.0,
                    hinh_anh_path: str = "", gio_phat_hien: str = None) -> int:
         """
         Thêm một dòng mới vào CSV file
@@ -102,7 +147,6 @@ class CSVLogger:
             video_source: Tên video/camera
             so_hieu_ocr: Số hiệu tàu
             do_tin_cay_ocr: Confidence OCR
-            toc_do_tb: Tốc độ trung bình
             hinh_anh_path: Đường dẫn ảnh
             gio_phat_hien: Giờ phát hiện (mặc định: hiện tại)
         
@@ -118,7 +162,8 @@ class CSVLogger:
         with self.lock:
             try:
                 # Kiểm tra xem (session_id, track_id) đã tồn tại chưa
-                df = pd.read_csv(self.csv_path)
+                df = self._read_csv_with_dtypes()
+                df = self._ensure_correct_dtypes(df)
                 existing_mask = (df['session_id'] == session_id) & (df['track_id'] == track_id)
                 
                 if not existing_mask.empty and existing_mask.any():
@@ -130,6 +175,7 @@ class CSVLogger:
                     if hinh_anh_path:
                         df.at[last_idx, 'hinh_anh_path'] = hinh_anh_path
                     
+                    df = self._ensure_correct_dtypes(df)
                     df.to_csv(self.csv_path, index=False, encoding='utf-8')
                     log_id = int(df.at[last_idx, 'log_id'])
                     print(f">> CSV: Cập nhật entry [unique_id={unique_id}, class={class_name}]")
@@ -147,7 +193,6 @@ class CSVLogger:
                     class_name,
                     so_hieu_ocr,
                     do_tin_cay_ocr,
-                    toc_do_tb,
                     gio_phat_hien,
                     hinh_anh_path,
                     video_source,
@@ -166,7 +211,7 @@ class CSVLogger:
     
     def update_log(self, track_id: int, session_id: str, 
                    so_hieu_ocr: str = None, do_tin_cay_ocr: float = None, 
-                   toc_do_tb: float = None, hinh_anh_path: str = None) -> bool:
+                   hinh_anh_path: str = None) -> bool:
         """
         Cập nhật dòng log cuối cùng của track_id trong session
         
@@ -175,7 +220,6 @@ class CSVLogger:
             session_id: Session ID
             so_hieu_ocr: Số hiệu tàu (cập nhật nếu có)
             do_tin_cay_ocr: Confidence OCR (cập nhật nếu có)
-            toc_do_tb: Tốc độ trung bình (cập nhật nếu có)
             hinh_anh_path: Đường dẫn ảnh (cập nhật nếu có)
         
         Returns:
@@ -183,7 +227,8 @@ class CSVLogger:
         """
         with self.lock:
             try:
-                df = pd.read_csv(self.csv_path)
+                # Đọc CSV với dtype chính xác
+                df = self._read_csv_with_dtypes()
                 
                 # Tìm dòng cuối cùng của track_id trong session này
                 mask = (df['track_id'] == track_id) & (df['session_id'] == session_id)
@@ -196,23 +241,83 @@ class CSVLogger:
                 # Lấy index của dòng cuối cùng
                 last_idx = matching_rows.index[-1]
                 
-                # Cập nhật các trường
+                # Cập nhật các trường - chuyển so_hieu_ocr sang object type
                 if so_hieu_ocr is not None:
-                    df.at[last_idx, 'so_hieu_ocr'] = so_hieu_ocr
+                    # Đảm bảo so_hieu_ocr là kiểu object/string trước khi gán
+                    df.at[last_idx, 'so_hieu_ocr'] = str(so_hieu_ocr) if so_hieu_ocr != 'N/A' else so_hieu_ocr
                 if do_tin_cay_ocr is not None:
-                    df.at[last_idx, 'do_tin_cay_ocr'] = do_tin_cay_ocr
-                if toc_do_tb is not None:
-                    df.at[last_idx, 'toc_do_tb'] = toc_do_tb
+                    df.at[last_idx, 'do_tin_cay_ocr'] = float(do_tin_cay_ocr)
                 if hinh_anh_path is not None:
                     df.at[last_idx, 'hinh_anh_path'] = hinh_anh_path
                 
+                # Đảm bảo dtype chính xác trước khi lưu
+                df = self._ensure_correct_dtypes(df)
+                
                 # Ghi lại CSV
                 df.to_csv(self.csv_path, index=False, encoding='utf-8')
-                print(f">> CSV: Cập nhật track_id={track_id} thành công")
+                
+                update_str = []
+                if so_hieu_ocr is not None:
+                    update_str.append(f"so_hieu={so_hieu_ocr}")
+                if do_tin_cay_ocr is not None:
+                    update_str.append(f"confidence={do_tin_cay_ocr:.1%}")
+                
+                print(f">> CSV: Cập nhật track_id={track_id}: {' | '.join(update_str)}")
                 return True
                 
             except Exception as e:
                 print(f">> CSV Error: Lỗi update_log: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
+                
+    def update_log_by_unique_id(self, unique_id: str, 
+                   so_hieu_ocr: str = None, do_tin_cay_ocr: float = None, 
+                   hinh_anh_path: str = None) -> bool:
+        """Cập nhật dòng log dựa trên unique_id"""
+        with self.lock:
+            try:
+                # Đọc CSV với dtype chính xác
+                df = self._read_csv_with_dtypes()
+                
+                # Tìm dòng theo unique_id
+                mask = (df['unique_id'] == unique_id)
+                matching_rows = df[mask]
+                
+                if matching_rows.empty:
+                    print(f">> CSV: Không tìm thấy unique_id={unique_id}")
+                    return False
+                
+                # Lấy index của dòng cuối cùng (mặc dù unique_id là duy nhất)
+                last_idx = matching_rows.index[-1]
+                
+                # Cập nhật các trường - chuyển so_hieu_ocr sang object type
+                if so_hieu_ocr is not None:
+                    df.at[last_idx, 'so_hieu_ocr'] = str(so_hieu_ocr) if so_hieu_ocr != 'N/A' else so_hieu_ocr
+                if do_tin_cay_ocr is not None:
+                    df.at[last_idx, 'do_tin_cay_ocr'] = float(do_tin_cay_ocr)
+                if hinh_anh_path is not None:
+                    df.at[last_idx, 'hinh_anh_path'] = hinh_anh_path
+                
+                # Đảm bảo dtype chính xác trước khi lưu
+                df = self._ensure_correct_dtypes(df)
+                
+                # Ghi lại CSV
+                df.to_csv(self.csv_path, index=False, encoding='utf-8')
+                
+                update_str = []
+                if so_hieu_ocr is not None:
+                    update_str.append(f"so_hieu={so_hieu_ocr}")
+                if do_tin_cay_ocr is not None:
+                    update_str.append(f"confidence={do_tin_cay_ocr:.1%}")
+                
+                print(f">> CSV: Cập nhật unique_id={unique_id}: {' | '.join(update_str)}")
+                return True
+                
+            except Exception as e:
+                print(f">> CSV Error: Lỗi update_log_by_unique_id: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
     
     def get_all_logs(self) -> List[Dict]:
@@ -223,7 +328,8 @@ class CSVLogger:
             List của dictionaries chứa dữ liệu log
         """
         try:
-            df = pd.read_csv(self.csv_path)
+            df = self._read_csv_with_dtypes()
+            df = self._ensure_correct_dtypes(df)
             if df.empty:
                 return []
             
@@ -238,7 +344,8 @@ class CSVLogger:
     def get_logs_by_session(self, session_id: str) -> List[Dict]:
         """Lấy tất cả logs của một session"""
         try:
-            df = pd.read_csv(self.csv_path)
+            df = self._read_csv_with_dtypes()
+            df = self._ensure_correct_dtypes(df)
             df_session = df[df['session_id'] == session_id]
             
             if df_session.empty:
@@ -253,7 +360,8 @@ class CSVLogger:
     def get_logs_by_so_hieu(self, so_hieu: str) -> List[Dict]:
         """Lấy tất cả logs của một tàu (theo so_hieu)"""
         try:
-            df = pd.read_csv(self.csv_path)
+            df = self._read_csv_with_dtypes()
+            df = self._ensure_correct_dtypes(df)
             df_ship = df[df['so_hieu_ocr'] == so_hieu]
             
             if df_ship.empty:
@@ -268,7 +376,8 @@ class CSVLogger:
     def get_log_by_track_id(self, track_id: int, session_id: str) -> Optional[Dict]:
         """Lấy log cuối cùng của một track_id trong session"""
         try:
-            df = pd.read_csv(self.csv_path)
+            df = self._read_csv_with_dtypes()
+            df = self._ensure_correct_dtypes(df)
             mask = (df['track_id'] == track_id) & (df['session_id'] == session_id)
             matching = df[mask]
             
@@ -294,13 +403,14 @@ class CSVLogger:
         """
         with self.lock:
             try:
-                df = pd.read_csv(self.csv_path)
+                df = self._read_csv_with_dtypes()
                 df['gio_phat_hien'] = pd.to_datetime(df['gio_phat_hien'])
                 
                 cutoff_date = datetime.now() - pd.Timedelta(days=days)
                 df_filtered = df[df['gio_phat_hien'] >= cutoff_date]
                 
                 deleted_count = len(df) - len(df_filtered)
+                df_filtered = self._ensure_correct_dtypes(df_filtered)
                 df_filtered.to_csv(self.csv_path, index=False, encoding='utf-8')
                 
                 print(f">> CSV: Xóa {deleted_count} logs cũ hơn {days} ngày")

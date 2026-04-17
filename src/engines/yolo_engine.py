@@ -7,7 +7,6 @@ from ultralytics import YOLO
 from src.engines.ocr_engine import ShipOCR
 from src.utils.report_utils import save_test_report
 from src.utils.csv_logger import get_csv_logger
-from src.engines.speed_estimator import SpeedEstimator
 
 class YoloTester:
     def __init__(self, model_path, input_source, output_folder,
@@ -71,8 +70,6 @@ class YoloTester:
             "passenger": "P",
             "passenger_ship": "P",
         }
-
-        self.speed_estimator = None
 
     # ==================== OCR WORKER - 2-STAGE ARCHITECTURE ====================
     def ocr_worker(self):
@@ -309,7 +306,6 @@ class YoloTester:
                 video_source=video_name,
                 so_hieu_ocr="N/A",
                 do_tin_cay_ocr=0.0,
-                toc_do_tb=0.0,
                 hinh_anh_path=img_path
             )
             print(f">> CSV: Logged New Detection track_id={track_id}")
@@ -326,13 +322,6 @@ class YoloTester:
         w_vid = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h_vid = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps_vid = cap.get(cv2.CAP_PROP_FPS) or 30.0
-
-        self.speed_estimator = SpeedEstimator(
-            fps=fps_vid,
-            pixel_to_meter=0.05,
-            history_length=12,
-            smoothing_window=5
-        )
 
         save_path = os.path.join(self.output_folder, f"result_{os.path.basename(self.input_source)}")
         out = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps_vid, (w_vid, h_vid))
@@ -389,15 +378,13 @@ class YoloTester:
 
                     crop_to_use = None
                     if track_id not in self.current_objects:
-                        h, w, _ = frame.shape
-                        cy1, cy2 = max(0, y1), min(h, y2)
-                        cx1, cx2 = max(0, x1), min(w, x2)
+                        h_frm, w_frm, _ = frame.shape
+                        cy1, cy2 = max(0, y1), min(h_frm, y2)
+                        cx1, cx2 = max(0, x1), min(w_frm, x2)
                         crop_to_use = frame[cy1:cy2, cx1:cx2].copy()
                         self.log_new_ship(track_id, class_name, crop_to_use)
                     else:
                         crop_to_use = self.current_objects[track_id]["crop"]
-
-                    _, speed_kmh = self.speed_estimator.update(track_id, box)
 
                     text_display = self.ocr_cache.get(track_id, {}).get("final", "...")
 
@@ -405,7 +392,6 @@ class YoloTester:
                         "bbox": (x1, y1, x2, y2),
                         "ocr": text_display,
                         "crop": crop_to_use,
-                        "speed_kmh": speed_kmh,
                         "class_name": class_name,  # Lưu class_name để dùng cho manual OCR
                     }
 
@@ -418,29 +404,7 @@ class YoloTester:
                         cv2.putText(annotated_frame, text_display, (x1, y1 - 10),
                                     cv2.FONT_HERSHEY_COMPLEX, 0.8, (0, 255, 255), 2)
 
-                    if speed_kmh > 0.5:
-                        text_speed = f"{speed_kmh:.1f} km/h"
-                        y_text = y1 - 55 if text_display != "..." else y1 - 45
-                        cv2.putText(annotated_frame, text_speed, (x1, y_text),
-                                    cv2.FONT_HERSHEY_DUPLEX, 0.85, (0, 0, 255), 3)
-
-            lost_ids = set(self.current_objects.keys()) - current_ids_in_frame
-            csv_logger = get_csv_logger(self.output_folder)
-            if lost_ids:
-                try:
-                    for tid in lost_ids:
-                        avg_speed = self.speed_estimator.get_average_kmh(tid)
-                        if avg_speed > 0:
-                            csv_logger.update_log(
-                                track_id=int(tid),
-                                session_id=self.session_id,
-                                toc_do_tb=avg_speed
-                            )
-                except Exception as e:
-                    print(f">> CSV Update Speed Error: {e}")
-
             self.current_objects = new_current_objects
-            self.speed_estimator.cleanup(current_ids_in_frame)
 
             out.write(annotated_frame)
             process_ms = (time.time() - start_t) * 1000
@@ -458,20 +422,6 @@ class YoloTester:
 
         cap.release()
         out.release()
-
-        csv_logger = get_csv_logger(self.output_folder)
-        if self.current_objects:
-            try:
-                for tid in self.current_objects:
-                    avg_speed = self.speed_estimator.get_average_kmh(tid)
-                    if avg_speed > 0:
-                        csv_logger.update_log(
-                            track_id=int(tid),
-                            session_id=self.session_id,
-                            toc_do_tb=avg_speed
-                        )
-            except Exception as e:
-                print(f">> Final CSV Update Error: {e}")
 
         if data_report:
             processed_count = len(data_report)

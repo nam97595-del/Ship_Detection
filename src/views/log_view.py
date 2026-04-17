@@ -40,16 +40,16 @@ class LogView:
         tree_frame = tk.Frame(main_frame, bg="#ecf0f1")
         tree_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        self.tree = ttk.Treeview(tree_frame, columns=("ID", "Class", "SoHieuOCR", "TocDo", "Gio", "Video"), 
+        self.tree = ttk.Treeview(tree_frame, columns=("ID", "Class", "SoHieuOCR", "Gio", "Video"), 
                                  show='headings', height=20)
         self.tree.heading("ID", text="ID Tracking")
         self.tree.heading("Class", text="Loại tàu")
         self.tree.heading("SoHieuOCR", text="Số hiệu (OCR)")
-        self.tree.heading("TocDo", text="Tốc độ TB (km/h)")
+
         self.tree.heading("Gio", text="Giờ phát hiện")
         self.tree.heading("Video", text="Nguồn video")
         
-        for col, w in zip(["ID","Class","SoHieuOCR","TocDo","Gio","Video"], [100,140,130,120,160,180]):
+        for col, w in zip(["ID","Class","SoHieuOCR","Gio","Video"], [100,160,160,180,230]):
             self.tree.column(col, anchor=tk.CENTER, width=w)
         
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
@@ -79,9 +79,8 @@ class LogView:
         self.manual_ocr_btn.pack(side=tk.LEFT, padx=5)
         
         # Hidden ship_history_tree for load_ship_history functionality
-        self.ship_history_tree = ttk.Treeview(self.frame, columns=("Gio", "TocDo", "SoHieu", "Video"), show='headings', height=5)
+        self.ship_history_tree = ttk.Treeview(self.frame, columns=("Gio", "SoHieu", "Video"), show='headings', height=5)
         self.ship_history_tree.heading("Gio", text="Giờ phát hiện")
-        self.ship_history_tree.heading("TocDo", text="Tốc độ TB (km/h)")
         self.ship_history_tree.heading("SoHieu", text="Số hiệu (OCR)")
         self.ship_history_tree.heading("Video", text="Nguồn video")
     
@@ -90,14 +89,20 @@ class LogView:
         for i in self.tree.get_children():
             self.tree.delete(i)
         self.tree_img_paths.clear()
+        
+        if not hasattr(self, 'tree_unique_ids'):
+            self.tree_unique_ids = {}
+        self.tree_unique_ids.clear()
+        
         self.db_img_canvas.delete("all")
         self.db_img_canvas.create_text(145, 130, text="Chọn một hàng\nđể xem ảnh", fill="gray", font=("Arial", 12))
         self.db_info_label.config(text="")
         
         for row in rows:
-            toc_do_display = f"{row[3]:.1f}" if row[3] is not None else 'N/A'
-            item_id = self.tree.insert("", tk.END, values=(row[0], row[1], row[2], toc_do_display, row[4], row[6]))
-            self.tree_img_paths[item_id] = row[5]
+            item_id = self.tree.insert("", tk.END, values=(row[0], row[1], row[2], row[3], row[5]))
+            self.tree_img_paths[item_id] = row[4]
+            if len(row) > 6:
+                self.tree_unique_ids[item_id] = row[6]
     
     def show_db_info(self, info, img_path):
         """Hiển thị thông tin và ảnh của tàu"""

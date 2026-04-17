@@ -34,14 +34,22 @@ class LogController:
             # Chuyển định dạng logs thành tuples để tương thích với UI
             rows = []
             for log in logs:
+                img_path = log.get('hinh_anh_path', '')
+                if isinstance(img_path, float):  # Xử lý trường hợp Pandas trả về float NaN cho chuỗi rỗng
+                    img_path = ''
+                    
+                so_hieu = log.get('so_hieu_ocr', 'N/A')
+                if isinstance(so_hieu, float):
+                    so_hieu = 'N/A'
+                    
                 row = (
                     log.get('track_id', ''),
                     log.get('class_name', ''),
-                    log.get('so_hieu_ocr', 'N/A'),
-                    log.get('toc_do_tb', ''),
+                    so_hieu,
                     log.get('gio_phat_hien', ''),
-                    log.get('hinh_anh_path', ''),
+                    img_path,
                     log.get('video_source', 'Unknown'),
+                    log.get('unique_id', ''),
                 )
                 rows.append(row)
             
@@ -61,18 +69,11 @@ class LogController:
         values = self.view.log_view.tree.item(item_id, "values")
         img_path = self.view.log_view.tree_img_paths.get(item_id, "")
         
-        toc_do_display = values[3] if len(values) > 3 else "N/A"
-        try:
-            toc_do_display = f"{float(toc_do_display):.1f}" if toc_do_display else "N/A"
-        except:
-            toc_do_display = "N/A"
-        
         info = (f"🆔 ID Tracking : {values[0]}\n"
                 f"🚢 Loại tàu      : {values[1]}\n"
                 f"🔢 Số hiệu (OCR) : {values[2]}\n"
-                f"⚡ Tốc độ TB      : {toc_do_display} km/h\n"
-                f"🕐 Giờ phát hiện : {values[4]}\n"
-                f"📹 Nguồn video   : {values[6] if len(values) > 6 else 'Unknown'}")
+                f"🕐 Giờ phát hiện : {values[3]}\n"
+                f"📹 Nguồn video   : {values[4] if len(values) > 4 else 'Unknown'}")
         self.view.show_db_info(info, img_path)
 
     def load_ship_history(self, so_hieu):
@@ -87,10 +88,8 @@ class LogController:
                 return
             
             for log in logs:
-                toc_do = f"{log.get('toc_do_tb', 0):.1f}" if log.get('toc_do_tb') else "N/A"
                 self.view.log_view.ship_history_tree.insert("", tk.END, values=(
                     log.get('gio_phat_hien', ''),
-                    toc_do,
                     log.get('so_hieu_ocr', 'N/A'),
                     log.get('video_source', 'Unknown')
                 ))
@@ -108,6 +107,7 @@ class LogController:
         values = self.view.log_view.tree.item(item_id, "values")
         track_id = int(values[0])
         img_rel_path = self.view.log_view.tree_img_paths.get(item_id, "")
+        unique_id = getattr(self.view.log_view, 'tree_unique_ids', {}).get(item_id, "")
         
         # Thử cách 1: Request từ engine nếu đang chạy (real-time)
         engine = getattr(self.view, 'engine', None)
@@ -119,16 +119,21 @@ class LogController:
         
         # Cách 2: OCR từ ảnh lưu trữ (fallback)
         if img_rel_path:
-            # Tạo full path từ relative path
-            img_full_path = os.path.join(self.current_output_folder, img_rel_path)
+            # Cách hiển thị ảnh ở view đã lấy đúng ảnh, do vậy ưu tiên kiểm tra path trực tiếp trước
+            if os.path.exists(img_rel_path):
+                img_full_path = img_rel_path
+            else:
+                # Tương thích ngược với các file nhật ký cũ có thể chỉ lưu 'ship_images/...'
+                img_full_path = os.path.join(self.current_output_folder, img_rel_path)
+                
             if os.path.exists(img_full_path):
-                self.manual_ocr_from_file(track_id, img_full_path)
+                self.manual_ocr_from_file(track_id, unique_id, img_full_path)
             else:
                 messagebox.showwarning("Cảnh báo", f"Không tìm thấy ảnh:\n{img_full_path}")
         else:
             messagebox.showwarning("Cảnh báo", "Không có ảnh lưu trữ hoặc hệ thống giám sát chưa chạy.")
 
-    def manual_ocr_from_file(self, track_id, img_path):
+    def manual_ocr_from_file(self, track_id, unique_id, img_path):
         """OCR từ file ảnh"""
         try:
             if not os.path.exists(img_path):
@@ -205,13 +210,12 @@ class LogController:
                 text = best["text"].strip().upper()
                 score = best["score"]
             
-            print(f">> OCR Result [track_id {track_id}]: {text} ({score:.1%})")
+            print(f">> OCR Result [track_id {track_id} | unique_id {unique_id}]: {text} ({score:.1%})")
             
             # Update CSV
             csv_logger = get_csv_logger(self.current_output_folder)
-            csv_logger.update_log(
-                track_id=track_id,
-                session_id="",
+            csv_logger.update_log_by_unique_id(
+                unique_id=unique_id,
                 so_hieu_ocr=text,
                 do_tin_cay_ocr=score
             )

@@ -127,11 +127,10 @@ class MainController:
             if x1 <= x_click <= x2 and y1 <= y_click <= y2:
                 self.selected_track_id = tid
                 self.view.show_crop(obj.get("crop"))
-                speed = obj.get("speed_kmh", 0.0)
                 detail = f"🆔 ID Tracking: {tid}\n"
                 if obj.get("ocr") != "...": 
                     detail += f"🔢 Số hiệu: {obj['ocr']}\n"
-                detail += f"⚡ Tốc độ hiện tại: {speed:.1f} km/h\nĐang phân tích..."
+                detail += "Đang phân tích..."
                 self.view.show_detail_text(detail)
                 found = True
                 break
