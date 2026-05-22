@@ -4,21 +4,18 @@ Công cụ kiểm thử và đánh giá hiệu năng mô hình YOLO (Object Trac
 
 ## 🚀 Tính Năng Chính
 
-* **Giao diện đồ họa (GUI):** Dễ dàng chọn thư mục Model, Video, Tracker và Output mà không cần sửa code.
-* **Hỗ trợ Tracking đa dạng:** Tích hợp sẵn các thuật toán tracking (BoTSORT/ByteTrack/OCSORT/v.v.) để đếm đối tượng độc nhất (Unique ID).
-* **Chọn Tracker động:** Combobox tự động quét thư mục `trackers/` và cho phép chọn file `.yaml` tracker.
-* **2-Stage OCR (Tùy chọn):** Phát hiện và nhận dạng text trên tàu (sử dụng PaddleOCR).
-* **Cấu hình linh hoạt:** Tùy chỉnh `Image Size`, `Skip Frame` (Stride), `Confidence Threshold`, và `Tracker` ngay trên giao diện.
+* **Giao diện đồ họa:** Dễ dàng chọn thư mục Model, Video, Tracker và Output mà không cần sửa code.
+* **Hỗ trợ Tracking đa dạng:** Tích hợp sẵn các thuật toán tracking để đếm đối tượng độc nhất (Unique ID).
+* **OCR:** Phát hiện và nhận dạng text trên tàu (PaddleOCR).
 * **Báo cáo tự động:**
     * Xuất video kết quả (`.mp4`) có vẽ khung tracking.
-    * Xuất file CSV chứa dữ liệu chi tiết từng phát hiện (session-based).
+    * Xuất file CSV chứa dữ liệu chi tiết từng phát hiện.
     * Lưu ảnh tàu phát hiện vào `output/ship_images/`.
-    * Xuất file TXT báo cáo tổng hợp.
+    * Xuất file .TXT báo cáo tổng hợp.
 
 ## 📂 Cấu Trúc Dự Án
 
 Dự án được tổ chức theo mô hình Modular để dễ dàng bảo trì và mở rộng:
-
 ```text
 project_root/
 │
@@ -33,9 +30,7 @@ project_root/
 │   │   ├── yolo_engine.py
 │   │   ├── ocr_engine.py
 │   │   ├── speed_estimator.py
-│   │  
-│   │
-│   ├── models/             # Model AI (best.pt, yolo models)
+│   ├── models/             # Model AI
 │   │
 │   ├── trackers/           # Tracker Config files (.yaml)
 │   │   ├── botsort.yaml
@@ -46,15 +41,15 @@ project_root/
 │   │   ├── log_view.py
 │   │   └── main_view.py
 │   │
-│   ├── utils/              # Tiện ích (CSV Logger, export, helper)
+│   ├── utils/              # Tiện ích
 │   │   ├── __init__.py
 │   │   ├── csv_logger.py
 │   │   ├── export_engine.py
 │   │   └── report_utils.py
 │   │
-│   └── main.py             # Entry point
+│   └── main.py             
 │
-├── output/                 # Output từ ứng dụng
+├── output/                 # Kết quả
 │   ├── shiplog.csv         # Log nhật ký tàu
 │   └── ship_images/        # Ảnh tàu phát hiện
 │
@@ -66,34 +61,12 @@ project_root/
 ## Yêu Cầu Hệ Thống & Cài Đặt
 
 ### Yêu Cầu Tối Thiểu
-- **Python:** 3.9+ (khuyến nghị 3.11+)
-- **GPU:** NVIDIA RTX 1050 trở lên (có hỗ trợ CUDA)
+- **Python:** 3.9+
+- **GPU:** NVIDIA RTX 1050 trở lên
 - **CUDA:** 12.1+ (phù hợp với PyTorch 2.1.2+cu121)
 - **cuDNN:** 8.x+
-- **RAM:** 8GB+ (khuyến nghị 16GB)
-- **Disk:** 10GB+ (cho models và output)
-
-### Các Package Quan Trọng
-```
-PyTorch 2.1.2 (CUDA 12.1)
-- torch 2.1.2+cu121
-- torchvision 0.16.2+cu121
-- torchaudio 2.1.2+cu121
-
-Ultralytics YOLO
-- ultralytics 8.4.8 (Object Detection & Tracking)
-
-OCR & Computer Vision
-- paddleocr 2.7.3 (Text OCR)
-- paddlepaddle 2.6.2
-- opencv-python 4.6.0.66
-
-Data & Utilities
-- pandas 3.0.0 (CSV handling)
-- numpy 1.26.4
-- scikit-learn 1.8.0
-- scikit-image 0.26.0
-```
+- **RAM:** 8GB+
+- **Disk:** 10GB+ 
 
 ### Các Bước Cài Đặt
 
@@ -145,11 +118,11 @@ python src/main.py
 
 ### Thiết Lập Thông Số
 1. **Chọn Model:** 
-   - Nhấn "..." trong phần "Model" → Chọn file model (`.pt`, `.engine`, v.v.)
+   - Nhấn "..." trong phần "Model" → Chọn file model (`.pt`, `.engine`)
 
 2. **Chọn Tracker:**
    - Combobox "Tracker" tự động quét thư mục `src/trackers/`
-   - Chọn tracker muốn sử dụng (ví dụ: `bytetrack.yaml`, `botsort.yaml`)
+   - Chọn tracker muốn sử dụng
    - Mặc định: `bytetrack.yaml`
 
 3. **Chọn Video:**
@@ -188,50 +161,6 @@ Sau khi chạy xong, vào thư mục `output/`:
 - Đặt file trong thư mục `src/trackers/`
 - Ứng dụng sẽ tự động quét và hiển thị danh sách
 
-## 🔧 Xử Lý Sự Cố (Troubleshooting)
-
-### Lỗi: `CUDA out of memory`
-**Giải pháp:**
-- Giảm `Image Size` (ví dụ: 640 → 416)
-- Tăng `Stride` để bỏ qua nhiều frame hơn (ví dụ: 3 → 5)
-- Đóng các ứng dụng khác sử dụng VRAM
-
-### Lỗi: `Could not find CUDA`
-**Giải pháp:**
-- Kiểm tra CUDA installation: `nvidia-smi`
-- Cài đặt lại PyTorch với CUDA support:
-  ```bash
-  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --force-reinstall
-  ```
-
-### Lỗi: `Module 'paddle' not found`
-**Giải pháp:**
-```bash
-pip install paddlepaddle paddleocr
-```
-
-### Video không hiển thị (OpenCV Error)
-**Giải pháp:**
-- Kiểm tra file video có bị corrupt không
-- Cài đặt lại OpenCV (opencv-python-headless có thể gây vấn đề):
-  ```bash
-  pip uninstall opencv-python-headless
-  pip install opencv-python
-  ```
-
-### Ứng dụng chạy chậm
-**Giải pháp:**
-- Kiểm tra GPU: `python -c "import torch; print(torch.cuda.is_available())"`
-- Tăng Stride để bỏ qua frame
-- Giảm Image Size
-- Dùng model nhẹ hơn (ví dụ: yolov8n thay vì yolov8x)
-
-### Track_ID bị reset
-**Giải pháp:**
-- Đây là hành vi bình thường - track_id được tạo mới với mỗi session
-- Phân biệt giữa các session bằng cột `session_id` trong CSV
-- Mỗi session có `unique_id` riêng: `session_id_track_id`
-
 ## 📊 File CSV
 
 File `output/shiplog.csv` có các cột sau:
@@ -254,12 +183,12 @@ File `output/shiplog.csv` có các cột sau:
 Dựa trên cấu hình của bạn **(RTX 1050, CUDA 12.1, Python 3.11)**:
 
 ```
-✅ Python 3.11
-✅ PyTorch 2.1.2 (CUDA 12.1)
-✅ Ultralytics 8.4.8
-✅ PaddleOCR 2.7.3
-✅ Pandas 3.0.0
-✅ OpenCV 4.6.0
+Python 3.11
+PyTorch 2.1.2 (CUDA 12.1)
+Ultralytics 8.4.8
+PaddleOCR 2.7.3
+Pandas 3.0.0
+OpenCV 4.6.0
 ```
 
 **Lệnh cài đặt nhanh:**
@@ -277,10 +206,6 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 # Cài dependencies
 pip install -r requirements.txt
 ```
-
-
-
 ---
 
-**Cập nhật lần cuối:** April 7, 2026  
-**Phiên bản:** 2.0  
+**Cập nhật lần cuối:** 7/4/2026  
