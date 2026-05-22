@@ -132,7 +132,7 @@ python src/main.py
    - Nhấn "..." → Chọn thư mục lưu kết quả
    - Kết quả sẽ được lưu vào `output/shiplog.csv` và `output/ship_images/`
 
-### Cấu Hình Advanced
+### Cấu Hình
 - **Image Size:** Kích thước ảnh đầu vào cho model (Mặc định: 640)
 - **Stride:** Số frame bỏ qua (Mặc định: 3 - xử lý 1/3 frame)
 - **Confidence:** Ngưỡng tự tin để lọc kết quả (Slider: 0.0 - 1.0)
