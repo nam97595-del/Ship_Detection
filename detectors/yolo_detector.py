@@ -1,11 +1,18 @@
+import os
 import numpy as np
 from ultralytics import YOLO
 from .base_detector import BaseDetector
 
 class YoloDetector(BaseDetector):
     def load_model(self):
-        print(f"Đang load model YOLO từ: {self.model_path}")
-        self.model = YOLO(self.model_path)
+        if self.model_path.endswith('.xml'):
+            load_path = os.path.dirname(self.model_path)
+            print(f"🚀 Phát hiện OpenVINO, đang load model từ thư mục: {load_path}")
+        else:
+            load_path = self.model_path
+            print(f"Đang load model YOLO từ: {load_path}")
+
+        self.model = YOLO(load_path, task='detect')
 
     def detect(self, frame):
         results = self.model.predict(frame, conf=self.conf_thresh, imgsz=self.imgsz, verbose=False)

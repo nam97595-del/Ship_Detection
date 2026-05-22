@@ -87,7 +87,7 @@ class App(tk.Tk):
         path = filedialog.askdirectory()
         if path:
             self.folder_model.set(path)
-            files = [f for f in os.listdir(path) if f.endswith(('.pt', '.pth', '.engine', '.onnx'))]
+            files = [f for f in os.listdir(path) if f.endswith(('.pt', '.pth', '.engine', '.onnx', '.xml'))]
             self.cb_models['values'] = files
             if files: self.cb_models.current(0)
 
