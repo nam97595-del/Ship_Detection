@@ -21,6 +21,9 @@ module_yolo/
 *.log
 *.txt
 *.csv
+*.mp4
+*.mov
+*.mkv
 
 /export_int8.py
 /test_rf_onnx.py
