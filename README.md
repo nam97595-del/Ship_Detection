@@ -232,7 +232,7 @@ pip install paddlepaddle paddleocr
 - Phân biệt giữa các session bằng cột `session_id` trong CSV
 - Mỗi session có `unique_id` riêng: `session_id_track_id`
 
-## 📊 Cơ Cấu File CSV
+## 📊 File CSV
 
 File `output/shiplog.csv` có các cột sau:
 
@@ -245,7 +245,6 @@ File `output/shiplog.csv` có các cột sau:
 | class_name | STR | Loại đối tượng (ví dụ: "speed_boat") |
 | so_hieu_ocr | STR | Số hiệu tàu (từ OCR) |
 | do_tin_cay_ocr | FLOAT | Độ tin cậy OCR (0-1) |
-| toc_do_tb | FLOAT | Tốc độ trung bình (km/h) |
 | gio_phat_hien | DATETIME | Thời gian phát hiện |
 | hinh_anh_path | STR | Đường dẫn ảnh tàu |
 | video_source | STR | Tên file video |
@@ -279,19 +278,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install -r requirements.txt
 ```
 
-## 📝 Ghi Chú & Hạn Chế
 
-- **Training không hỗ trợ:** Tool này là dành cho testing model đã train, không hỗ trợ training.
-- **Format video:** Hỗ trợ `.mp4`, `.avi`, `.mov`, `.mkv`, `.wmv`, `.flv`, `.webm`
-- **GPU Memory:** RTX 1050 có 2GB VRAM - có thể cần giảm Image Size nếu gặp OOM
-- **OCR:** Chỉ hoạt động nếu chọn Text Model và bật "Bật 2-Stage OCR"
-
-## 🤝 Đóng Góp & Liên Hệ
-
-Nếu gặp vấn đề hoặc có đề xuất, vui lòng:
-1. Kiểm tra **Troubleshooting** trên
-2. Tạo issue trên GitHub
-3. Liên hệ qua email hoặc document dự án
 
 ---
 
